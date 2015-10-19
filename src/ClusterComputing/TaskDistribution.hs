@@ -16,39 +16,21 @@ import Control.Distributed.Process.Serializable (Serializable)
 import Control.Monad (forM_)
 import qualified Data.Binary as B (encode)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
-import qualified Language.Haskell.Interpreter as I -- ugly: should not be referred here
-
--- FIXME move data access to config
-import qualified DataAccess.DataSource as DS
---import qualified DataAccess.SimpleDataSource as DS
-import qualified DataAccess.HdfsDataSource as DS
-
---FIXME separate module
-import DynamicLoading
---FIXME DataEntry should be as dynamic as possible, not part of Distribution, but of spawning
-import TaskTypes
 
 import ClusterComputing.TaskTransport
+import TaskSpawning.TaskSpawning (processTask)
+import TaskSpawning.TaskTypes
 
 -- BEGIN bindings for node communication
-
--- at some point it might get relevant to have a worker local config
--- - I do not know, how to implement that, the distributed-process setup might prevent that
-workerTask :: TaskTransport -> Process ()
-workerTask (TaskTransport masterProcess modulePath numDB) = do
-  say $ "processing: " ++ modulePath
-  -- TODO at this point there is still really undesired explicit coupling
-  --  - how can a binding between a data source and a task as data consumer be somewhat typesafe inferred?
-  --  - at least [a]/a could be supported, one one needs to be implemented
-  liftIO $ putStrLn $ "local worker log; processing: " ++ modulePath
-  func <- liftIO (loadTask (I.as :: [DataEntry] -> [DataEntry]) modulePath) `onException` sendEmpty
-  say "loading data"
-  localData <- liftIO (DS._loadEntries DS.dataSource mkFilePath :: IO [DataEntry]) `onException` sendEmpty
-  send masterProcess (func $ localData)
+workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
+workerTask (TaskTransport masterProcess taskName taskDef dataSpec) = do
+  say $ "processing: " ++ taskName
+  sendError
+  result <- liftIO (processTask taskDef dataSpec) `onException` sendError
+  send masterProcess (Right result :: Either String TaskResult)
   say $ "processing done"
   where
-    sendEmpty = send masterProcess ([] :: [DataEntry])
-    mkFilePath = "/" --"resources/pseudo-db/" ++ (show numDB)
+    sendError = send masterProcess (Left "ouch." :: Either String TaskResult)
 
 -- template haskell vs. its result
 {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}
@@ -79,7 +61,6 @@ workerTaskClosure =
 
 rtable :: RemoteTable
 rtable = __remoteTable $ initRemoteTable
-
 -- END bindings for node communication
 
 startWorkerNode :: String -> IO ()
@@ -109,14 +90,17 @@ executeOnNodes' numDBs modulePath workerNodes = do
     where
       spawnWorkerProcess :: ProcessId -> (Int, NodeId) -> Process ()
       spawnWorkerProcess masterProcess (numDB, workerNode) = do
-        workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess modulePath numDB))
+        moduleContent <- liftIO $ readFile modulePath
+        workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" (SourceCodeModule moduleContent) (HdfsData "/")))
         return ()
       collectResults :: (Serializable a) => Int -> [[a]] -> Process [a]
       collectResults 0 res = return $ concat $ reverse res
       collectResults n res = do
         say $ "expecting " ++ (show n) ++ " more responses"
         next <- expect
-        collectResults (n-1) (next:res)
+        case next of
+          (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
+          (Right nextChunk) -> collectResults (n-1) (nextChunk:res)
 
 shutdownWorkerNodes :: IO ()
 shutdownWorkerNodes =  do

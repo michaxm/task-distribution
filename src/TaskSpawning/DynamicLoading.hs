@@ -1,4 +1,4 @@
-module DynamicLoading (
+module TaskSpawning.DynamicLoading (
   loadTask
   ) where
 
@@ -19,7 +19,7 @@ loadTaskDef :: Typeable a => a -> String -> I.Interpreter a
 loadTaskDef resultType m = do
   I.setImports ["Prelude"]
   sayI $ "Interpreter: Loading static modules and: " ++ m ++ " ..."
-  I.loadModules ["src/TaskSpawning/TaskTypes.hs", m]
+  I.loadModules ["src/TaskTypes.hs", m]
   I.setTopLevelModules [strippedModuleName m]
   func <- I.interpret "task" resultType
   sayI $ "done.\n"

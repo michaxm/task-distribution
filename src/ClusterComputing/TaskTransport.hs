@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric, OverlappingInstances #-}
-module ClusterComputing.TaskTransport (TaskTransport(..)) where
+module ClusterComputing.TaskTransport where
 
 import Control.Distributed.Process (ProcessId)
 import Control.Distributed.Process.Serializable (Serializable)
@@ -9,8 +9,21 @@ import GHC.Generics (Generic)
 
 data TaskTransport = TaskTransport {
   _masterProcess :: ProcessId,
-  _modulePath :: String,
-  _numDB :: Int
+  _taskName :: String,
+  _taskDef :: TaskDef,
+  _dataSpec :: DataSpec
   } deriving (Typeable, Generic)
 instance Binary TaskTransport
 instance Serializable TaskTransport
+
+data TaskDef = SourceCodeModule {
+  _moduleText :: String
+  } deriving (Typeable, Generic)
+instance Binary TaskDef
+instance Serializable TaskDef
+
+data DataSpec = HdfsData {
+  _filePath :: String
+  } deriving (Typeable, Generic)
+instance Binary DataSpec
+instance Serializable DataSpec
