@@ -2,7 +2,6 @@ module TaskSpawning.TaskSpawning where
 
 import qualified Language.Haskell.Interpreter as I
 
-import ClusterComputing.TaskTransport
 import qualified DataAccess.DataSource as DS
 import qualified DataAccess.SimpleDataSource as SDS
 import qualified DataAccess.HdfsDataSource as HDS

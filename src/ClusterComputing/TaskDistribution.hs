@@ -66,29 +66,28 @@ startWorkerNode workerNumber = do
   putStrLn "initializing worker"
   startSlave backend
 
-executeDistributed :: (Serializable a) => Int -> String -> ([a] -> IO ()) -> IO ()
-executeDistributed numDBs modulePath resultProcessor = do
+executeDistributed :: (Serializable a) => TaskDef -> [DataSpec] -> ([a] -> IO ()) -> IO () -- FIXME [DataSpec] is a list only because of testing purposes for now (select other data on different nodes)
+executeDistributed taskDef dataSpecs resultProcessor = do
   backend <- initializeBackend "localhost" "44440" rtable
   startMaster backend $ \workerNodes -> do
-    result <- executeOnNodes numDBs modulePath workerNodes
+    result <- executeOnNodes taskDef dataSpecs workerNodes
     liftIO $ resultProcessor result
 
-executeOnNodes :: (Serializable a) => Int -> String -> [NodeId] -> Process [a]
-executeOnNodes numDBs modulePath workerNodes = do
+executeOnNodes :: (Serializable a) => TaskDef -> [DataSpec] -> [NodeId] -> Process [a]
+executeOnNodes taskDef dataSpecs workerNodes = do
   if null workerNodes
     then say "no workers => no results (ports open?)" >> return [] 
-    else executeOnNodes' numDBs modulePath workerNodes
+    else executeOnNodes' taskDef dataSpecs workerNodes
 
-executeOnNodes' :: (Serializable a) => Int -> String -> [NodeId] -> Process [a]
-executeOnNodes' numDBs modulePath workerNodes = do
+executeOnNodes' :: (Serializable a) => TaskDef -> [DataSpec] -> [NodeId] -> Process [a]
+executeOnNodes' taskDef dataSpecs workerNodes = do
   masterProcess <- getSelfPid
-  forM_ (zip [1..numDBs] (cycle workerNodes)) (spawnWorkerProcess masterProcess) -- FIXME a worker node should not be allocated twice, let it have an 'occupied' state
-  collectResults numDBs []
+  forM_ (zip dataSpecs (cycle workerNodes)) (spawnWorkerProcess masterProcess) -- FIXME a worker node should not be allocated twice, let it have an 'occupied' state
+  collectResults (length dataSpecs) []
     where
-      spawnWorkerProcess :: ProcessId -> (Int, NodeId) -> Process ()
-      spawnWorkerProcess masterProcess (numDB, workerNode) = do
-        moduleContent <- liftIO $ readFile modulePath
-        _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" (mkSourceCodeModule moduleContent) {-(HdfsData "/")-} (PseudoDB numDB)))
+      spawnWorkerProcess :: ProcessId -> (DataSpec, NodeId) -> Process ()
+      spawnWorkerProcess masterProcess (dataSpec, workerNode) = do
+        _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" taskDef dataSpec))
         return ()
       collectResults :: (Serializable a) => Int -> [[a]] -> Process [a]
       collectResults 0 res = return $ concat $ reverse res
@@ -98,10 +97,6 @@ executeOnNodes' numDBs modulePath workerNodes = do
         case next of
           (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
           (Right nextChunk) -> say "got a result" >> collectResults (n-1) (nextChunk:res)
-      mkSourceCodeModule :: String -> TaskDef
-      mkSourceCodeModule moduleContent = SourceCodeModule (strippedModuleName modulePath) moduleContent
-        where
-          strippedModuleName = reverse . takeWhile (/= '/') . drop 1 . dropWhile (/= '.') . reverse
 
 shutdownWorkerNodes :: IO ()
 shutdownWorkerNodes =  do

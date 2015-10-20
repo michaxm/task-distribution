@@ -11,12 +11,24 @@ main = do
   args <- getArgs
   case args of
    ["master", modulePath] -> do
-     executeDistributed 3 modulePath resultProcessor
+     moduleContent <- readFile modulePath
+     executeDistributed (mkSourceCodeModule modulePath moduleContent) (mkSimpleDataSpecs 3) resultProcessor
    ["worker", workerNumber] -> do
      startWorkerNode workerNumber
    ["shutdown"] -> do
      shutdownWorkerNodes
    _ -> putStrLn $ "Syntax: master <module path> | worker <number> | shutdown"
+
+-- TODO streamline, move to lib
+mkSourceCodeModule :: String -> String -> TaskDef
+mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleName modulePath) moduleContent
+  where
+    strippedModuleName = reverse . takeWhile (/= '/') . drop 1 . dropWhile (/= '.') . reverse
+
+mkSimpleDataSpecs :: Int -> [DataSpec]
+mkSimpleDataSpecs 0 = []
+mkSimpleDataSpecs n = PseudoDB n : (mkSimpleDataSpecs (n-1))
+--{-(HdfsData "/")-}
 
 -- FIXME type annotation has nothing to do with type safety here!!!
 resultProcessor :: TaskResult -> IO ()
