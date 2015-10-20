@@ -16,15 +16,17 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     ClusterComputing.TaskDistribution
+  exposed-modules:     TaskSpawning.TaskTypes
+                     , ClusterComputing.TaskDistribution
                      , DataAccess.DataSource
   other-modules:       ClusterComputing.TaskTransport
-                     , TaskSpawning.DynamicLoading, TaskSpawning.TaskTypes, TaskSpawning.TaskSpawning
+                     , TaskSpawning.DynamicLoading, TaskSpawning.TaskSpawning
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
   ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
   build-depends:       base >= 4.7 && < 5
                      , hint
                      , binary
+                     , temporary, filepath, directory
                      , distributed-process
                      , distributed-process-simplelocalnet
                        -- for explicit bindings (instead of Template Haskell)

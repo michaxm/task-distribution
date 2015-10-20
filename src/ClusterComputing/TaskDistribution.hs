@@ -24,10 +24,8 @@ import TaskSpawning.TaskTypes
 workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
 workerTask (TaskTransport masterProcess taskName taskDef dataSpec) = do
   say $ "processing: " ++ taskName
-  sendError
-  result <- liftIO (processTask taskDef dataSpec) `onException` sendError
+  result <- liftIO (processTask taskDef dataSpec) `onException` sendError -- FIXME error gets lost here - why?
   send masterProcess (Right result :: Either String TaskResult)
-  say $ "processing done"
   where
     sendError = send masterProcess (Left "ouch." :: Either String TaskResult)
 
@@ -84,22 +82,26 @@ executeOnNodes numDBs modulePath workerNodes = do
 executeOnNodes' :: (Serializable a) => Int -> String -> [NodeId] -> Process [a]
 executeOnNodes' numDBs modulePath workerNodes = do
   masterProcess <- getSelfPid
-  forM_ (zip [1..numDBs] (cycle workerNodes)) (spawnWorkerProcess masterProcess)
+  forM_ (zip [1..numDBs] (cycle workerNodes)) (spawnWorkerProcess masterProcess) -- FIXME a worker node should not be allocated twice, let it have an 'occupied' state
   collectResults numDBs []
     where
       spawnWorkerProcess :: ProcessId -> (Int, NodeId) -> Process ()
       spawnWorkerProcess masterProcess (numDB, workerNode) = do
         moduleContent <- liftIO $ readFile modulePath
-        _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" (SourceCodeModule moduleContent) {-(HdfsData "/")-} (PseudoDB numDB)))
+        _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" (mkSourceCodeModule moduleContent) {-(HdfsData "/")-} (PseudoDB numDB)))
         return ()
       collectResults :: (Serializable a) => Int -> [[a]] -> Process [a]
       collectResults 0 res = return $ concat $ reverse res
-      collectResults n res = do
+      collectResults n res = do --FIXME handler for unexpected types
         say $ "expecting " ++ (show n) ++ " more responses"
         next <- expect
         case next of
           (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
-          (Right nextChunk) -> collectResults (n-1) (nextChunk:res)
+          (Right nextChunk) -> say "got a result" >> collectResults (n-1) (nextChunk:res)
+      mkSourceCodeModule :: String -> TaskDef
+      mkSourceCodeModule moduleContent = SourceCodeModule (strippedModuleName modulePath) moduleContent
+        where
+          strippedModuleName = reverse . takeWhile (/= '/') . drop 1 . dropWhile (/= '.') . reverse
 
 shutdownWorkerNodes :: IO ()
 shutdownWorkerNodes =  do

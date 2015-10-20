@@ -17,7 +17,8 @@ instance Binary TaskTransport
 instance Serializable TaskTransport
 
 data TaskDef = SourceCodeModule {
-  _moduleText :: String
+  _moduleName :: String,
+  _moduleContent :: String
   } deriving (Typeable, Generic)
 instance Binary TaskDef
 instance Serializable TaskDef

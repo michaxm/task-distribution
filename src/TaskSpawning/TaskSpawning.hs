@@ -15,12 +15,15 @@ processTask taskDef dataSpec = do
   func <- buildTaskLogic taskDef
   putStrLn "loading data"
   data' <- loadData dataSpec
-  return $ func data'
+  putStrLn "calculating result"
+  result <- return $ func data'
+  putStrLn "returning result"
+  return result
 
 buildTaskLogic :: TaskDef -> IO (TaskInput -> TaskResult)
-buildTaskLogic (SourceCodeModule moduleText) =
-  loadTask (I.as :: TaskInput -> TaskResult) moduleText
+buildTaskLogic (SourceCodeModule moduleName moduleContent) =
+  loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
 
 loadData :: DataSpec -> IO TaskResult
-loadData (HdfsData filePath) = DS._loadEntries HDS.dataSource filePath
-loadData (PseudoDB numDB) = DS._loadEntries SDS.dataSource ("resources/pseudo-db/" ++ (show numDB))
+loadData (HdfsData filePath) = DS._loadEntries HDS.dataSource filePath -- TODO distinguish String/Read by overlapping instances or otherwise?
+loadData (PseudoDB numDB) = DS._loadEntries SDS.stringSource ("/home/axm/projects/thesis-distributed-calculation/cluster-computing/resources/pseudo-db/" ++ (show numDB)) -- TODO make simple usable for all (for basic example)
