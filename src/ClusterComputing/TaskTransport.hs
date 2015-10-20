@@ -22,8 +22,12 @@ data TaskDef = SourceCodeModule {
 instance Binary TaskDef
 instance Serializable TaskDef
 
-data DataSpec = HdfsData {
-  _filePath :: String
-  } deriving (Typeable, Generic)
+data DataSpec =
+  HdfsData {
+    _filePath :: String
+    }
+  | PseudoDB {
+    _numDB :: Int
+    } deriving (Typeable, Generic)
 instance Binary DataSpec
 instance Serializable DataSpec

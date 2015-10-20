@@ -1,7 +1,5 @@
 module DataAccess.SimpleDataSource where
 
-import Data.List (lines)
-
 import DataAccess.DataSource
 
 dataSource :: DataSource String

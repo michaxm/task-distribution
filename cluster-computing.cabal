@@ -21,7 +21,7 @@ library
   other-modules:       ClusterComputing.TaskTransport
                      , TaskSpawning.DynamicLoading, TaskSpawning.TaskTypes, TaskSpawning.TaskSpawning
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
+  ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
   build-depends:       base >= 4.7 && < 5
                      , hint
                      , binary

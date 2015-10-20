@@ -7,10 +7,9 @@ import Control.Distributed.Process (Process, ProcessId, NodeId,
                                     say, getSelfPid, spawn, send, expect, liftIO, onException,
                                     RemoteTable)
 import Control.Distributed.Process.Backend.SimpleLocalnet (initializeBackend, startMaster, startSlave, terminateSlave)
-import Control.Distributed.Static (Closure)  -- FIXME?
 import qualified Control.Distributed.Process.Serializable as PS
 import qualified Control.Distributed.Static as S
-import Control.Distributed.Process.Closure (mkClosure, remotable, staticDecode)
+import Control.Distributed.Process.Closure (staticDecode)
 import Control.Distributed.Process.Node (initRemoteTable)
 import Control.Distributed.Process.Serializable (Serializable)
 import Control.Monad (forM_)
@@ -40,8 +39,8 @@ workerTask__static :: S.Static (TaskTransport -> Process ())
 workerTask__static = S.staticLabel "ClusterComputing.TaskDistribution.workerTask"
 workerTask__sdict :: S.Static (PS.SerializableDict TaskTransport)
 workerTask__sdict = S.staticLabel "ClusterComputing.TaskDistribution.workerTask__sdict"
-workerTask__tdict :: S.Static (PS.SerializableDict ())
-workerTask__tdict = S.staticLabel "ClusterComputing.TaskDistribution.workerTask__tdict"
+--workerTask__tdict :: S.Static (PS.SerializableDict ())
+--workerTask__tdict = S.staticLabel "ClusterComputing.TaskDistribution.workerTask__tdict"
 __remoteTable :: S.RemoteTable -> S.RemoteTable
 __remoteTable =
   ((S.registerStatic "ClusterComputing.TaskDistribution.workerTask" (R1.toDynamic workerTask))
@@ -91,7 +90,7 @@ executeOnNodes' numDBs modulePath workerNodes = do
       spawnWorkerProcess :: ProcessId -> (Int, NodeId) -> Process ()
       spawnWorkerProcess masterProcess (numDB, workerNode) = do
         moduleContent <- liftIO $ readFile modulePath
-        workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" (SourceCodeModule moduleContent) (HdfsData "/")))
+        _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" (SourceCodeModule moduleContent) {-(HdfsData "/")-} (PseudoDB numDB)))
         return ()
       collectResults :: (Serializable a) => Int -> [[a]] -> Process [a]
       collectResults 0 res = return $ concat $ reverse res

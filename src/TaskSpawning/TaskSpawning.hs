@@ -14,7 +14,8 @@ processTask taskDef dataSpec = do
   putStrLn "building task logic"
   func <- buildTaskLogic taskDef
   putStrLn "loading data"
-  loadData dataSpec
+  data' <- loadData dataSpec
+  return $ func data'
 
 buildTaskLogic :: TaskDef -> IO (TaskInput -> TaskResult)
 buildTaskLogic (SourceCodeModule moduleText) =
@@ -22,4 +23,4 @@ buildTaskLogic (SourceCodeModule moduleText) =
 
 loadData :: DataSpec -> IO TaskResult
 loadData (HdfsData filePath) = DS._loadEntries HDS.dataSource filePath
---loadData ()  "/" --"resources/pseudo-db/" ++ (show numDB)
+loadData (PseudoDB numDB) = DS._loadEntries SDS.dataSource ("resources/pseudo-db/" ++ (show numDB))
