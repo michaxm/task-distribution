@@ -12,7 +12,7 @@ main = do
   case args of
    ["master", modulePath] -> do
      moduleContent <- readFile modulePath
-     executeDistributed (mkSourceCodeModule modulePath moduleContent) (mkSimpleDataSpecs 3) resultProcessor
+     executeDistributed (mkSourceCodeModule modulePath moduleContent) {-(mkSimpleDataSpecs 3)-} mkHdfsDataSpec resultProcessor
    ["worker", workerNumber] -> do
      startWorkerNode workerNumber
    ["shutdown"] -> do
@@ -28,7 +28,8 @@ mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleNa
 mkSimpleDataSpecs :: Int -> [DataSpec]
 mkSimpleDataSpecs 0 = []
 mkSimpleDataSpecs n = PseudoDB n : (mkSimpleDataSpecs (n-1))
---{-(HdfsData "/")-}
+
+mkHdfsDataSpec = [HdfsData "/"]
 
 -- FIXME type annotation has nothing to do with type safety here!!!
 resultProcessor :: TaskResult -> IO ()
