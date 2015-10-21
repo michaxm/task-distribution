@@ -29,7 +29,7 @@ mkSimpleDataSpecs :: Int -> [DataSpec]
 mkSimpleDataSpecs 0 = []
 mkSimpleDataSpecs n = PseudoDB n : (mkSimpleDataSpecs (n-1))
 
-mkHdfsDataSpec = [HdfsData "/"]
+mkHdfsDataSpec = [HdfsData "/testfile"]
 
 -- FIXME type annotation has nothing to do with type safety here!!!
 resultProcessor :: TaskResult -> IO ()
