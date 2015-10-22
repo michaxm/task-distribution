@@ -4,9 +4,14 @@ import qualified Data.Text.Lazy as TL
 import System.HDFS.HDFSClient
 
 import DataAccess.DataSource
+import TaskSpawning.TaskTypes (HdfsConfig)
 
-dataSource :: DataSource String
-dataSource = DataSource { _loadEntries = loadEntries' }
+dataSource :: HdfsConfig -> DataSource String
+dataSource config = DataSource { _loadEntries = loadEntries' }
   where
     loadEntries' :: String -> IO [String]
-    loadEntries' filePath = hdfsReadFile ("localhost", 55555) filePath >>= \t -> (print t >> return t) >>= return . lines . TL.unpack
+    loadEntries' filePath =
+      putStrLn (filePath ++ " " ++ (show config)) >>
+      hdfsReadFile config filePath >>=
+      \t -> (print t >> return t) >>=
+      return . lines . TL.unpack

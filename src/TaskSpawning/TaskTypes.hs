@@ -17,8 +17,10 @@ data TaskDef = SourceCodeModule {
 instance Binary TaskDef
 instance Serializable TaskDef
 
+type HdfsConfig = (String, Int)
 data DataSpec =
   HdfsData {
+    _config :: HdfsConfig,
     _filePath :: String
     }
   | PseudoDB {
