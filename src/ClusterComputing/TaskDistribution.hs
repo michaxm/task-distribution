@@ -4,7 +4,7 @@ module ClusterComputing.TaskDistribution (
   shutdownWorkerNodes) where
 
 import Control.Distributed.Process (Process, ProcessId, NodeId,
-                                    say, getSelfPid, spawn, send, expect, liftIO, onException,
+                                    say, getSelfPid, spawn, send, expect, liftIO, catch,
                                     RemoteTable)
 import Control.Distributed.Process.Backend.SimpleLocalnet (initializeBackend, startMaster, startSlave, terminateSlave)
 import qualified Control.Distributed.Process.Serializable as PS
@@ -12,6 +12,7 @@ import qualified Control.Distributed.Static as S
 import Control.Distributed.Process.Closure (staticDecode)
 import Control.Distributed.Process.Node (initRemoteTable)
 import Control.Distributed.Process.Serializable (Serializable)
+import Control.Exception.Base (SomeException)
 import Control.Monad (forM_)
 import qualified Data.Binary as B (encode)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
@@ -24,10 +25,15 @@ import TaskSpawning.TaskTypes
 workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
 workerTask (TaskTransport masterProcess taskName taskDef dataSpec) = do
   say $ "processing: " ++ taskName
-  result <- liftIO (processTask taskDef dataSpec) `onException` sendError -- FIXME error gets lost here - why?
-  send masterProcess (Right result :: Either String TaskResult)
+  result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError
+  send masterProcess (result :: Either String TaskResult)
   where
-    sendError = send masterProcess (Left "ouch." :: Either String TaskResult)
+    buildError :: SomeException -> Process (Either String TaskResult)
+    buildError e = return $ Left $ "Task execution failed: " ++ (format $ show e)
+      where
+        format [] = []
+        format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
+        format (x:rest) = x:[] ++ (format rest)
 
 -- template haskell vs. its result
 {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}
