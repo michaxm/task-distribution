@@ -14,10 +14,9 @@ main = do
      runMaster masterHost masterPort (mkSimpleDataSpecs $ read numDBs) modulePath
    ["master", "hdfs", masterHost, masterPort, hdfsPath, thriftPort, modulePath] ->
      runMaster masterHost masterPort (mkHdfsDataSpec masterHost (read thriftPort) hdfsPath) modulePath
-   ["worker", workerHost, workerPort] -> do
-     startWorkerNode (workerHost, workerPort)
-   ["shutdownlocal"] -> do
-     shutdownWorkerNodes ("localhost", "44440")
+   ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, workerPort)
+   ["showworkers"] -> showWorkerNodes ("localhost", "44440")
+   ["shutdownlocal"] -> shutdownWorkerNodes ("localhost", "44440")
    _ -> putStrLn ("Syntax: master simpledata <master hostname> <master port> <numDBs> <module path>\n"
                   ++ "| master hdfs <master hostname> <master port> <hdfs path> <thrift server port> <module path>\n"
                   ++ "| worker <worker host> <worker port>\n"

@@ -1,6 +1,7 @@
 module ClusterComputing.TaskDistribution (
   startWorkerNode,
   executeDistributed,
+  showWorkerNodes,
   shutdownWorkerNodes) where
 
 import Control.Distributed.Process (Process, ProcessId, NodeId,
@@ -105,6 +106,11 @@ executeOnNodes' taskDef dataSpecs workerNodes = do
         case next of
           (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
           (Right nextChunk) -> say "got a result" >> collectResults (n-1) (nextChunk:res)
+
+showWorkerNodes :: NodeConfig -> IO ()
+showWorkerNodes (host, port) = do
+  backend <- initializeBackend host port initRemoteTable
+  startMaster backend (\workerNodes -> liftIO . putStrLn $ "Slaves: " ++ show workerNodes)
 
 shutdownWorkerNodes :: NodeConfig -> IO ()
 shutdownWorkerNodes (host, port) = do
