@@ -10,14 +10,24 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-   ["master", modulePath] -> do
+   ["master", "simpledata", masterHost, masterPort, numDBs, modulePath] ->
+     runMaster masterHost masterPort (mkSimpleDataSpecs $ read numDBs) modulePath
+   ["master", "hdfs", masterHost, masterPort, hdfsPath, thriftPort, modulePath] ->
+     runMaster masterHost masterPort (mkHdfsDataSpec masterHost (read thriftPort) hdfsPath) modulePath
+   ["worker", workerHost, workerPort] -> do
+     startWorkerNode (workerHost, workerPort)
+   ["shutdownlocal"] -> do
+     shutdownWorkerNodes ("localhost", "44440")
+   _ -> putStrLn ("Syntax: master simpledata <master hostname> <master port> <numDBs> <module path>\n"
+                  ++ "| master hdfs <master hostname> <master port> <hdfs path> <thrift server port> <module path>\n"
+                  ++ "| worker <worker host> <worker port>\n"
+                  ++ "| shutdownlocal")
+
+runMaster :: String -> String -> [DataSpec] -> String -> IO ()
+runMaster masterHost masterPort dataSpecs modulePath = do
      moduleContent <- readFile modulePath
-     executeDistributed (mkSourceCodeModule modulePath moduleContent) {-(mkSimpleDataSpecs 3)-} mkHdfsDataSpec resultProcessor
-   ["worker", workerNumber] -> do
-     startWorkerNode workerNumber
-   ["shutdown"] -> do
-     shutdownWorkerNodes
-   _ -> putStrLn $ "Syntax: master <module path> | worker <number> | shutdown"
+     executeDistributed (masterHost, masterPort) (mkSourceCodeModule modulePath moduleContent) dataSpecs resultProcessor
+  
 
 -- TODO streamline, move to lib
 mkSourceCodeModule :: String -> String -> TaskDef
@@ -29,7 +39,8 @@ mkSimpleDataSpecs :: Int -> [DataSpec]
 mkSimpleDataSpecs 0 = []
 mkSimpleDataSpecs n = PseudoDB n : (mkSimpleDataSpecs (n-1))
 
-mkHdfsDataSpec = [HdfsData ("localhost", 55555) "/testfile"]
+mkHdfsDataSpec :: String -> Int -> String -> [DataSpec]
+mkHdfsDataSpec host port path = [HdfsData (host, port) path]
 
 -- FIXME type annotation has nothing to do with type safety here!!!
 resultProcessor :: TaskResult -> IO ()

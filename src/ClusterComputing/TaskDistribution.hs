@@ -53,7 +53,7 @@ __remoteTable =
 
 workerTaskClosure :: TaskTransport -> S.Closure (Process ())
 workerTaskClosure =
--- $(mkClosure 'workerTask)
+  -- $(mkClosure 'workerTask)
 -- ======>
    ((S.closure
     (workerTask__static
@@ -66,15 +66,17 @@ rtable :: RemoteTable
 rtable = __remoteTable $ initRemoteTable
 -- END bindings for node communication
 
-startWorkerNode :: String -> IO ()
-startWorkerNode workerNumber = do
-  backend <- initializeBackend "localhost" ("4444" ++ workerNumber) rtable
+type NodeConfig = (String, String)
+
+startWorkerNode :: NodeConfig -> IO ()
+startWorkerNode (host, port) = do
+  backend <- initializeBackend host port rtable
   putStrLn "initializing worker"
   startSlave backend
 
-executeDistributed :: (Serializable a) => TaskDef -> [DataSpec] -> ([a] -> IO ()) -> IO () -- FIXME [DataSpec] is a list only because of testing purposes for now (select other data on different nodes)
-executeDistributed taskDef dataSpecs resultProcessor = do
-  backend <- initializeBackend "localhost" "44440" rtable
+executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataSpec] -> ([a] -> IO ()) -> IO () -- FIXME [DataSpec] is a list only because of testing purposes for now (select other data on different nodes)
+executeDistributed (host, port) taskDef dataSpecs resultProcessor = do
+  backend <- initializeBackend host port rtable
   startMaster backend $ \workerNodes -> do
     result <- executeOnNodes taskDef dataSpecs workerNodes
     liftIO $ resultProcessor result
@@ -104,9 +106,9 @@ executeOnNodes' taskDef dataSpecs workerNodes = do
           (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
           (Right nextChunk) -> say "got a result" >> collectResults (n-1) (nextChunk:res)
 
-shutdownWorkerNodes :: IO ()
-shutdownWorkerNodes =  do
-  backend <- initializeBackend "localhost" "44440" rtable
+shutdownWorkerNodes :: NodeConfig -> IO ()
+shutdownWorkerNodes (host, port) = do
+  backend <- initializeBackend host port rtable
   startMaster backend $ \workerNodes -> do
     say $ "found " ++ (show $ length workerNodes) ++ " worker nodes, shutting them down"
     forM_ workerNodes terminateSlave
