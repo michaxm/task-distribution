@@ -67,17 +67,17 @@ rtable :: RemoteTable
 rtable = __remoteTable $ initRemoteTable
 -- END bindings for node communication
 
-type NodeConfig = (String, String)
+type NodeConfig = (String, Int)
 
 startWorkerNode :: NodeConfig -> IO ()
 startWorkerNode (host, port) = do
-  backend <- initializeBackend host port rtable
+  backend <- initializeBackend host (show port) rtable
   putStrLn "initializing worker"
   startSlave backend
 
 executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataSpec] -> ([a] -> IO ()) -> IO () -- FIXME [DataSpec] is a list only because of testing purposes for now (select other data on different nodes)
 executeDistributed (host, port) taskDef dataSpecs resultProcessor = do
-  backend <- initializeBackend host port rtable
+  backend <- initializeBackend host (show port) rtable
   startMaster backend $ \workerNodes -> do
     result <- executeOnNodes taskDef dataSpecs workerNodes
     liftIO $ resultProcessor result
@@ -109,12 +109,12 @@ executeOnNodes' taskDef dataSpecs workerNodes = do
 
 showWorkerNodes :: NodeConfig -> IO ()
 showWorkerNodes (host, port) = do
-  backend <- initializeBackend host port initRemoteTable
+  backend <- initializeBackend host (show port) initRemoteTable
   startMaster backend (\workerNodes -> liftIO . putStrLn $ "Slaves: " ++ show workerNodes)
 
 shutdownWorkerNodes :: NodeConfig -> IO ()
 shutdownWorkerNodes (host, port) = do
-  backend <- initializeBackend host port rtable
+  backend <- initializeBackend host (show port) rtable
   startMaster backend $ \workerNodes -> do
     say $ "found " ++ (show $ length workerNodes) ++ " worker nodes, shutting them down"
     forM_ workerNodes terminateSlave

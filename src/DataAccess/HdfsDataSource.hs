@@ -1,5 +1,6 @@
 module DataAccess.HdfsDataSource where
 
+import Control.Exception (catch, SomeException)
 import qualified Data.Text.Lazy as TL
 import System.HDFS.HDFSClient
 
@@ -11,7 +12,11 @@ dataSource config = DataSource { _loadEntries = loadEntries' }
   where
     loadEntries' :: String -> IO [String]
     loadEntries' filePath =
-      putStrLn (filePath ++ " " ++ (show config)) >>
-      hdfsReadFile config filePath >>=
+      putStrLn targetDescription >>
+      hdfsReadFile config filePath `catch` wrapException >>=
       \t -> (print t >> return t) >>=
       return . lines . TL.unpack
+      where
+        targetDescription = filePath ++ " " ++ (show config)
+        wrapException :: SomeException -> IO a
+        wrapException e = error $ "Error accessing "++targetDescription++": "++(show e)
