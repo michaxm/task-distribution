@@ -1,7 +1,8 @@
-module TaskSpawning.DynamicLoading (
+module TaskSpawning.SourceCodeExecution (
   loadTask
   ) where
 
+import Control.Monad.IO.Class (MonadIO)
 import Data.List (intersperse)
 import Data.Typeable (Typeable)
 import qualified Language.Haskell.Interpreter as I
@@ -31,7 +32,8 @@ loadTaskDef resultType moduleName moduleContent = do
         I.loadModules ["src/TaskSpawning/TaskTypes.hs", moduleFile] --FIXME typing + Hint
         I.setTopLevelModules [moduleName]
 
-withTempModuleFile :: String -> String -> (FilePath -> I.Interpreter a) -> I.Interpreter a
+-- TODO generalize as util?
+withTempModuleFile :: (MonadIO m) => String -> String -> (FilePath -> m a) -> m a
 withTempModuleFile moduleName moduleContent moduleAction = do
   (moduleFile, moduleDir) <- I.liftIO $ writeModuleFile
   res <- moduleAction moduleFile -- FIXME Exception Handling -> cleanup

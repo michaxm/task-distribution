@@ -4,16 +4,22 @@ module TaskSpawning.TaskTypes where
 
 import Control.Distributed.Process.Serializable (Serializable)
 import Data.Binary (Binary)
+import Data.ByteString.Lazy (ByteString)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 
 type TaskInput = [String]
 type TaskResult = [String]
 
-data TaskDef = SourceCodeModule {
-  _moduleName :: String,
-  _moduleContent :: String
-  } deriving (Typeable, Generic)
+data TaskDef =
+  SourceCodeModule {
+    _moduleName :: String,
+    _moduleContent :: String
+    }
+  | UnevaluatedThunk {
+    _unevaluatedThunk :: ByteString,
+    _deployable :: ByteString
+    } deriving (Typeable, Generic)
 instance Binary TaskDef
 instance Serializable TaskDef
 

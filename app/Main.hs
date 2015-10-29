@@ -1,9 +1,10 @@
 module Main where
 
+import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
 import Data.List.Split (splitOn)
 import System.Console.GetOpt (getOpt, OptDescr(..), ArgOrder(..), ArgDescr(..))
-import System.Environment (getArgs)
+import System.Environment (getArgs, getProgName, getExecutablePath)
 
 import ClusterComputing.TaskDistribution
 import TaskSpawning.TaskTypes
@@ -15,32 +16,44 @@ main = do
    ("master" : masterArgs) -> runMaster $ parseMasterOpts masterArgs
    ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, (read workerPort))
    ["showworkers"] -> showWorkerNodes ("localhost", 44440)
-   ["shutdownlocal"] -> shutdownWorkerNodes ("localhost", 44440)
-   _ -> putStrLn usageInfo
+   ["shutdown"] -> shutdownWorkerNodes ("localhost", 44440)
+   _ -> userSyntaxError "unknown mode"
+
+userSyntaxError :: String -> undefined
+userSyntaxError reason = error $ usageInfo ++ reason ++ "\n"
 
 usageInfo :: String
-usageInfo = "Syntax: master <host> <port> <module path> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
+usageInfo = "Syntax: master <host> <port> <module:module path|binarytest> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
             ++ "| worker <worker host> <worker port>\n"
-            ++ "| shutdownlocal"
+            ++ "| shutdown\n"
 
 data MasterOptions = MasterOptions {
   _host :: String,
   _port :: Int,
-  _modulePath :: String,
+  _taskSpec :: TaskSpec,
   _dataSpecs :: [DataSpec]
   }
+
+data TaskSpec = SourceCodeSpec String | BinaryTest String
 
 parseMasterOpts :: [String] -> MasterOptions
 parseMasterOpts args =
   case args of
-   [masterHost, port, modulePath, dataSpec] -> MasterOptions masterHost (read port) modulePath (parseDataSpec masterHost dataSpec)
-   _ -> error $ usageInfo ++ "\n wrong number of master options"
+   [masterHost, port, taskSpec, dataSpec] -> MasterOptions masterHost (read port) (parseTaskSpec taskSpec) (parseDataSpec masterHost dataSpec)
+   _ -> userSyntaxError "wrong number of master options"
   where
+    parseTaskSpec :: String -> TaskSpec
+    parseTaskSpec args =
+      case splitOn ":" args of
+       ["module", modulePath] -> SourceCodeSpec modulePath
+       ["binarytest"] -> BinaryTest "TODO"
+       _ -> userSyntaxError $ "unknown task specification: " ++ args
     parseDataSpec :: String -> String -> [DataSpec]
     parseDataSpec masterHost args =
       case splitOn ":" args of
        ["simpledata", numDBs] -> mkSimpleDataSpecs $ read numDBs
        ["hdfs", thriftPort, hdfsPath] -> mkHdfsDataSpec masterHost (read thriftPort) hdfsPath
+       _ -> userSyntaxError $ "unknown data specification: " ++ args
       where
         mkSimpleDataSpecs :: Int -> [DataSpec]
         mkSimpleDataSpecs 0 = []
@@ -49,9 +62,18 @@ parseMasterOpts args =
         mkHdfsDataSpec host port path = [HdfsData (host, port) path]
 
 runMaster :: MasterOptions -> IO ()
-runMaster (MasterOptions masterHost masterPort modulePath dataSpecs) = do
-     moduleContent <- readFile modulePath
-     executeDistributed (masterHost, masterPort) (mkSourceCodeModule modulePath moduleContent) dataSpecs resultProcessor
+runMaster (MasterOptions masterHost masterPort taskSpec dataSpecs) = do
+  taskDef <- buildTaskDef taskSpec
+  executeDistributed (masterHost, masterPort) taskDef dataSpecs resultProcessor
+    where
+      buildTaskDef :: TaskSpec -> IO TaskDef
+      buildTaskDef (SourceCodeSpec modulePath) = do
+        moduleContent <- readFile modulePath
+        return $ mkSourceCodeModule modulePath moduleContent
+      buildTaskDef (BinaryTest _) = do
+        selfPath <- getExecutablePath
+        program <- BL.readFile selfPath
+        return $ UnevaluatedThunk (BL.empty) program
 
 -- TODO streamline, move to lib?
 mkSourceCodeModule :: String -> String -> TaskDef
@@ -61,4 +83,7 @@ mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleNa
 
 -- FIXME type annotation has nothing to do with type safety here!!!
 resultProcessor :: TaskResult -> IO ()
-resultProcessor = putStrLn . concat . intersperse "\n" . map show
+resultProcessor = putStrLn . join "\n" . map show
+
+join :: String -> [String] -> String
+join separator = concat . intersperse separator

@@ -5,8 +5,10 @@ import qualified Language.Haskell.Interpreter as I
 import qualified DataAccess.DataSource as DS
 import qualified DataAccess.SimpleDataSource as SDS
 import qualified DataAccess.HdfsDataSource as HDS
-import TaskSpawning.DynamicLoading (loadTask)
+
+import TaskSpawning.SourceCodeExecution (loadTask)
 import TaskSpawning.TaskTypes
+import TaskSpawning.DeployCompleteProgram
 
 processTask :: TaskDef -> DataSpec -> IO TaskResult
 processTask taskDef dataSpec = do
@@ -22,6 +24,7 @@ processTask taskDef dataSpec = do
 buildTaskLogic :: TaskDef -> IO (TaskInput -> TaskResult)
 buildTaskLogic (SourceCodeModule moduleName moduleContent) =
   loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
+buildTaskLogic (UnevaluatedThunk _ program) = deployAndRun program
 
 loadData :: DataSpec -> IO TaskResult
 loadData (HdfsData config filePath) = DS._loadEntries (HDS.dataSource config) filePath -- TODO distinguish String/Read by overlapping instances or otherwise?
