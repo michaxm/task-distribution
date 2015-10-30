@@ -17,6 +17,7 @@ main = do
    ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, (read workerPort))
    ["showworkers"] -> showWorkerNodes ("localhost", 44440)
    ["shutdown"] -> shutdownWorkerNodes ("localhost", 44440)
+   ["temptest"] -> putStrLn "working"
    _ -> userSyntaxError "unknown mode"
 
 userSyntaxError :: String -> undefined

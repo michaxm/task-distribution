@@ -16,7 +16,8 @@ deployAndRun program = do
   filepath <- createTempFilePath "distributed-prog"
   BL.writeFile filepath program
   readProcessWithExitCode "chmod" ["+x", filepath] "" >>= expectSilentSuccess
-  (code, stdout, stderr) <- readProcessWithExitCode filepath [] ""
+  putStrLn $ "running " ++ filepath
+  (code, stdout, stderr) <- readProcessWithExitCode filepath ["temptest"] ""
   removeFile filepath
   print (code, stdout, stderr)
   return $ map (++ " dummy append")
