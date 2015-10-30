@@ -7,7 +7,7 @@ resolver: lts-2.22
 packages:
 - '.'
 - haskell-hdfs-thrift-client
-#- thrift
+- packman
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: [thrift-0.9.3]

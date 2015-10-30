@@ -8,6 +8,7 @@ import System.Environment (getArgs, getProgName, getExecutablePath)
 
 import ClusterComputing.TaskDistribution
 import TaskSpawning.TaskTypes
+import TaskSpawning.FunctionSerialization
 
 main :: IO ()
 main = do
@@ -17,7 +18,7 @@ main = do
    ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, (read workerPort))
    ["showworkers"] -> showWorkerNodes ("localhost", 44440)
    ["shutdown"] -> shutdownWorkerNodes ("localhost", 44440)
-   ["temptest"] -> putStrLn "working"
+   ["executebinary", taskFn] -> executeBinary (read taskFn) -- TODO prototypic workaround
    _ -> userSyntaxError "unknown mode"
 
 userSyntaxError :: String -> undefined
@@ -74,7 +75,11 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpecs) = do
       buildTaskDef (BinaryTest _) = do
         selfPath <- getExecutablePath
         program <- BL.readFile selfPath
-        return $ UnevaluatedThunk (BL.empty) program
+        taskFn <- serializeFunction testFunction
+        return $ UnevaluatedThunk taskFn program
+          where
+            testFunction :: TaskInput -> TaskResult
+            testFunction = map (++ "append dynamic over binary transport")
 
 -- TODO streamline, move to lib?
 mkSourceCodeModule :: String -> String -> TaskDef
@@ -88,3 +93,12 @@ resultProcessor = putStrLn . join "\n" . map show
 
 join :: String -> [String] -> String
 join separator = concat . intersperse separator
+
+-- TODO prototypic workaround
+executeBinary :: BL.ByteString -> IO ()
+executeBinary taskFn = do
+  f <- deserialize taskFn :: IO (TaskInput -> TaskResult)
+  print (f dummyData)
+    where
+      dummyData :: TaskInput
+      dummyData = ["testline1", "testline2"]

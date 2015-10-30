@@ -24,7 +24,7 @@ processTask taskDef dataSpec = do
 buildTaskLogic :: TaskDef -> IO (TaskInput -> TaskResult)
 buildTaskLogic (SourceCodeModule moduleName moduleContent) =
   loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
-buildTaskLogic (UnevaluatedThunk _ program) = deployAndRun program
+buildTaskLogic (UnevaluatedThunk function program) = deployAndRun function program
 
 loadData :: DataSpec -> IO TaskResult
 loadData (HdfsData config filePath) = DS._loadEntries (HDS.dataSource config) filePath -- TODO distinguish String/Read by overlapping instances or otherwise?

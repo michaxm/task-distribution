@@ -19,6 +19,7 @@ library
   exposed-modules:     TaskSpawning.TaskTypes
                      , ClusterComputing.TaskDistribution
                      , DataAccess.DataSource
+                     , TaskSpawning.FunctionSerialization
   other-modules:       ClusterComputing.TaskTransport
                      , TaskSpawning.TaskSpawning, TaskSpawning.SourceCodeExecution, TaskSpawning.DeployCompleteProgram
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
@@ -29,6 +30,7 @@ library
                      , temporary, filepath, directory
                      , transformers
                      , bytestring
+                     , packman
                      , process
                      , distributed-process
                      , distributed-process-simplelocalnet
