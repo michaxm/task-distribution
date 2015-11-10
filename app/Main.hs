@@ -8,7 +8,7 @@ import System.Environment (getArgs, getProgName, getExecutablePath)
 
 import ClusterComputing.TaskDistribution
 import TaskSpawning.TaskTypes
-import TaskSpawning.FunctionSerialization
+import TaskSpawning.TaskSpawning (executeFullBinaryArg, fullDeploymentSerialize, fullDeploymentExecute)
 
 main :: IO ()
 main = do
@@ -18,14 +18,15 @@ main = do
    ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, (read workerPort))
    ["showworkers"] -> showWorkerNodes ("localhost", 44440)
    ["shutdown"] -> shutdownWorkerNodes ("localhost", 44440)
-   ["executebinary", taskFn] -> executeBinary (read taskFn) -- TODO prototypic workaround
+   -- this is an expected entry point for every client program using full binary serialization (as demonstrated in "fullbinarydemo")
+   [executeFullBinaryArg, taskFn, taskInput] -> fullDeploymentExecute (read taskFn) (read taskInput)
    _ -> userSyntaxError "unknown mode"
 
 userSyntaxError :: String -> undefined
 userSyntaxError reason = error $ usageInfo ++ reason ++ "\n"
 
 usageInfo :: String
-usageInfo = "Syntax: master <host> <port> <module:module path|binarytest> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
+usageInfo = "Syntax: master <host> <port> <module:module path|fullbinarydemo> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
             ++ "| worker <worker host> <worker port>\n"
             ++ "| shutdown\n"
 
@@ -36,7 +37,8 @@ data MasterOptions = MasterOptions {
   _dataSpecs :: [DataSpec]
   }
 
-data TaskSpec = SourceCodeSpec String | BinaryTest String
+data TaskSpec = SourceCodeSpec String
+              | FullBinaryDeployment (TaskInput -> TaskResult)
 
 parseMasterOpts :: [String] -> MasterOptions
 parseMasterOpts args =
@@ -48,7 +50,7 @@ parseMasterOpts args =
     parseTaskSpec args =
       case splitOn ":" args of
        ["module", modulePath] -> SourceCodeSpec modulePath
-       ["binarytest"] -> BinaryTest "TODO"
+       ["fullbinarydemo"] -> FullBinaryDeployment (map (++ " append dynamic over binary transport"))
        _ -> userSyntaxError $ "unknown task specification: " ++ args
     parseDataSpec :: String -> String -> [DataSpec]
     parseDataSpec masterHost args =
@@ -72,14 +74,9 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpecs) = do
       buildTaskDef (SourceCodeSpec modulePath) = do
         moduleContent <- readFile modulePath
         return $ mkSourceCodeModule modulePath moduleContent
-      buildTaskDef (BinaryTest _) = do
+      buildTaskDef (FullBinaryDeployment function) = do
         selfPath <- getExecutablePath
-        program <- BL.readFile selfPath
-        taskFn <- serializeFunction testFunction
-        return $ UnevaluatedThunk taskFn program
-          where
-            testFunction :: TaskInput -> TaskResult
-            testFunction = map (++ "append dynamic over binary transport")
+        fullDeploymentSerialize selfPath function
 
 -- TODO streamline, move to lib?
 mkSourceCodeModule :: String -> String -> TaskDef
@@ -93,12 +90,3 @@ resultProcessor = putStrLn . join "\n" . map show
 
 join :: String -> [String] -> String
 join separator = concat . intersperse separator
-
--- TODO prototypic workaround
-executeBinary :: BL.ByteString -> IO ()
-executeBinary taskFn = do
-  f <- deserialize taskFn :: IO (TaskInput -> TaskResult)
-  print (f dummyData)
-    where
-      dummyData :: TaskInput
-      dummyData = ["testline1", "testline2"]

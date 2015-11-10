@@ -22,7 +22,15 @@ import ClusterComputing.TaskTransport
 import TaskSpawning.TaskSpawning (processTask)
 import TaskSpawning.TaskTypes
 
+{-
+ The bits in this file are arranged so that the less verbose Template Haskell version would work. That version is not used due to incompability
+ issues between packman and Template Haskell though, but is retained in the commens for documentational purposes.
+-}
+
 -- BEGIN bindings for node communication
+{-
+ This is the final building block of the worker task execution, calling TaskSpawning.processTask.
+-}
 workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
 workerTask (TaskTransport masterProcess taskName taskDef dataSpec) = do
   say $ "processing: " ++ taskName
@@ -37,13 +45,14 @@ workerTask (TaskTransport masterProcess taskName taskDef dataSpec) = do
         format (x:rest) = x:[] ++ (format rest)
 
 -- template haskell vs. its result
-{-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}
+-- needs: {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}
 --remotable ['workerTask] 
 -- ======>
 workerTask__static :: S.Static (TaskTransport -> Process ())
 workerTask__static = S.staticLabel "ClusterComputing.TaskDistribution.workerTask"
 workerTask__sdict :: S.Static (PS.SerializableDict TaskTransport)
 workerTask__sdict = S.staticLabel "ClusterComputing.TaskDistribution.workerTask__sdict"
+-- not used for now, removed due to warnings as errors
 --workerTask__tdict :: S.Static (PS.SerializableDict ())
 --workerTask__tdict = S.staticLabel "ClusterComputing.TaskDistribution.workerTask__tdict"
 __remoteTable :: S.RemoteTable -> S.RemoteTable
@@ -119,4 +128,3 @@ shutdownWorkerNodes (host, port) = do
     say $ "found " ++ (show $ length workerNodes) ++ " worker nodes, shutting them down"
     forM_ workerNodes terminateSlave
     -- try terminateAllSlaves instead?
-

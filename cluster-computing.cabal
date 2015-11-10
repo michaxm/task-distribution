@@ -19,9 +19,9 @@ library
   exposed-modules:     TaskSpawning.TaskTypes
                      , ClusterComputing.TaskDistribution
                      , DataAccess.DataSource
-                     , TaskSpawning.FunctionSerialization
+                     , TaskSpawning.TaskSpawning
   other-modules:       ClusterComputing.TaskTransport
-                     , TaskSpawning.TaskSpawning, TaskSpawning.SourceCodeExecution, TaskSpawning.DeployCompleteProgram
+                     , TaskSpawning.FunctionSerialization, TaskSpawning.SourceCodeExecution, TaskSpawning.DeployCompleteProgram
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
   ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
   build-depends:       base >= 4.7 && < 5

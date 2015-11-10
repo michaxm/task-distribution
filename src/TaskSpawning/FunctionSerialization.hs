@@ -1,4 +1,4 @@
-module TaskSpawning.FunctionSerialization (serializeFunction, deserialize) where
+module TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction) where
 
 import Data.Binary (encode, decode)
 import qualified Data.ByteString.Lazy as L
@@ -10,6 +10,9 @@ serializeFunction = serialize
 
 serialize :: Typeable a => a -> IO L.ByteString
 serialize a = P.trySerialize a >>= return . encode
+
+deserializeFunction :: (Typeable a, Typeable b) => L.ByteString -> IO (a -> b)
+deserializeFunction = deserialize
 
 deserialize :: (Typeable a) => L.ByteString -> IO a
 deserialize = P.deserialize . decode
