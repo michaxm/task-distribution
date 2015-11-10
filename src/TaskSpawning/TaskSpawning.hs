@@ -22,10 +22,10 @@ executeFullBinaryArg = "executefullbinary"
  - source code execution via hint
    ... is happy to  TODO continue...
 -}
-processTask :: TaskDef -> DataSpec -> IO TaskResult
-processTask taskDef dataSpec = do
+processTask :: TaskDef -> DataDef -> IO TaskResult
+processTask taskDef dataDef = do
   putStrLn "loading data"
-  taskInput <- loadData dataSpec
+  taskInput <- loadData dataDef
   putStrLn "applying to task"
   result <- applyTaskLogic taskDef taskInput
   putStrLn "returning result"
@@ -41,7 +41,7 @@ applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput = do
 applyTaskLogic (UnevaluatedThunk function program) taskInput = deployAndRunFullBinary program function executeFullBinaryArg taskInput
 
 -- FIXME port not open (file not found?) error silently dropped
-loadData :: DataSpec -> IO TaskResult
+loadData :: DataDef -> IO TaskResult
 loadData (HdfsData config filePath) = DS._loadEntries (HDS.dataSource config) filePath -- TODO distinguish String/Read by overlapping instances or otherwise?
 loadData (PseudoDB numDB) = DS._loadEntries SDS.stringSource ("/home/axm/projects/thesis-distributed-calculation/cluster-computing/resources/pseudo-db/" ++ (show numDB)) -- TODO make simple usable for all (for basic example)
 

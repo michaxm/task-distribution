@@ -34,11 +34,13 @@ data MasterOptions = MasterOptions {
   _host :: String,
   _port :: Int,
   _taskSpec :: TaskSpec,
-  _dataSpecs :: [DataSpec]
+  _dataSpecs :: DataSpec
   }
 
 data TaskSpec = SourceCodeSpec String
               | FullBinaryDeployment (TaskInput -> TaskResult)
+data DataSpec = SimpleDataSpec Int
+              | HdfsDataSpec HdfsConfig String
 
 parseMasterOpts :: [String] -> MasterOptions
 parseMasterOpts args =
@@ -56,23 +58,18 @@ parseMasterOpts args =
         mkBinaryDemoArgs :: String -> String -> TaskSpec
         mkBinaryDemoArgs "append" demoArg = FullBinaryDeployment (map (++ (" "++demoArg)))
         mkBinaryDemoArgs "filter" demoArg = FullBinaryDeployment (filter (demoArg `isInfixOf`))
-    parseDataSpec :: String -> String -> [DataSpec]
+    parseDataSpec :: String -> String -> DataSpec
     parseDataSpec masterHost args =
       case splitOn ":" args of
-       ["simpledata", numDBs] -> mkSimpleDataSpecs $ read numDBs
-       ["hdfs", thriftPort, hdfsPath] -> mkHdfsDataSpec masterHost (read thriftPort) hdfsPath
+       ["simpledata", numDBs] -> SimpleDataSpec $ read numDBs
+       ["hdfs", thriftPort, hdfsPath] -> HdfsDataSpec (masterHost, read thriftPort) hdfsPath
        _ -> userSyntaxError $ "unknown data specification: " ++ args
-      where
-        mkSimpleDataSpecs :: Int -> [DataSpec]
-        mkSimpleDataSpecs 0 = []
-        mkSimpleDataSpecs n = PseudoDB n : (mkSimpleDataSpecs (n-1))
-        mkHdfsDataSpec :: String -> Int -> String -> [DataSpec]
-        mkHdfsDataSpec host port path = [HdfsData (host, port) path]
 
 runMaster :: MasterOptions -> IO ()
-runMaster (MasterOptions masterHost masterPort taskSpec dataSpecs) = do
+runMaster (MasterOptions masterHost masterPort taskSpec dataSpec) = do
   taskDef <- buildTaskDef taskSpec
-  executeDistributed (masterHost, masterPort) taskDef dataSpecs resultProcessor
+  dataDefs <- expandDataSpec dataSpec
+  executeDistributed (masterHost, masterPort) taskDef dataDefs resultProcessor
     where
       buildTaskDef :: TaskSpec -> IO TaskDef
       buildTaskDef (SourceCodeSpec modulePath) = do
@@ -81,6 +78,14 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpecs) = do
       buildTaskDef (FullBinaryDeployment function) = do
         selfPath <- getExecutablePath
         fullDeploymentSerialize selfPath function
+
+expandDataSpec :: DataSpec -> IO [DataDef]
+expandDataSpec (HdfsDataSpec config path) = return $ [HdfsData config path]
+expandDataSpec (SimpleDataSpec numDBs) = return $ mkSimpleDataSpecs numDBs
+  where
+    mkSimpleDataSpecs :: Int -> [DataDef]
+    mkSimpleDataSpecs 0 = []
+    mkSimpleDataSpecs n = PseudoDB n : (mkSimpleDataSpecs (n-1))
 
 -- TODO streamline, move to lib?
 mkSourceCodeModule :: String -> String -> TaskDef

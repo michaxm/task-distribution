@@ -24,7 +24,7 @@ instance Binary TaskDef
 instance Serializable TaskDef
 
 type HdfsConfig = (String, Int)
-data DataSpec =
+data DataDef =
   HdfsData {
     _config :: HdfsConfig,
     _filePath :: String
@@ -32,5 +32,5 @@ data DataSpec =
   | PseudoDB {
     _numDB :: Int
     } deriving (Typeable, Generic)
-instance Binary DataSpec
-instance Serializable DataSpec
+instance Binary DataDef
+instance Serializable DataDef

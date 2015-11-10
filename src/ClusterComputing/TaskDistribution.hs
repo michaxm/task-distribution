@@ -84,27 +84,27 @@ startWorkerNode (host, port) = do
   putStrLn "initializing worker"
   startSlave backend
 
-executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataSpec] -> ([a] -> IO ()) -> IO () -- FIXME [DataSpec] is a list only because of testing purposes for now (select other data on different nodes)
-executeDistributed (host, port) taskDef dataSpecs resultProcessor = do
+executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataDef] -> ([a] -> IO ()) -> IO () -- FIXME [DataDef] is a list only because of testing purposes for now (select other data on different nodes)
+executeDistributed (host, port) taskDef dataDefs resultProcessor = do
   backend <- initializeBackend host (show port) rtable
   startMaster backend $ \workerNodes -> do
-    result <- executeOnNodes taskDef dataSpecs workerNodes
+    result <- executeOnNodes taskDef dataDefs workerNodes
     liftIO $ resultProcessor result
 
-executeOnNodes :: (Serializable a) => TaskDef -> [DataSpec] -> [NodeId] -> Process [a]
-executeOnNodes taskDef dataSpecs workerNodes = do
+executeOnNodes :: (Serializable a) => TaskDef -> [DataDef] -> [NodeId] -> Process [a]
+executeOnNodes taskDef dataDefs workerNodes = do
   if null workerNodes
     then say "no workers => no results (ports open?)" >> return [] 
-    else executeOnNodes' taskDef dataSpecs workerNodes
+    else executeOnNodes' taskDef dataDefs workerNodes
 
-executeOnNodes' :: (Serializable a) => TaskDef -> [DataSpec] -> [NodeId] -> Process [a]
-executeOnNodes' taskDef dataSpecs workerNodes = do
+executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> [NodeId] -> Process [a]
+executeOnNodes' taskDef dataDefs workerNodes = do
   masterProcess <- getSelfPid
-  taskWorkerPairing <- liftIO $ pairSuitableWorkers dataSpecs workerNodes -- TODO have a choice of strategies, TODO do the pairing on the fly, respecting current worker state (see below)
+  taskWorkerPairing <- liftIO $ pairSuitableWorkers dataDefs workerNodes -- TODO have a choice of strategies, TODO do the pairing on the fly, respecting current worker state (see below)
   forM_ taskWorkerPairing (spawnWorkerProcess masterProcess) -- FIXME a worker node should not be allocated twice, let it have an 'occupied' state
-  collectResults (length dataSpecs) []
+  collectResults (length dataDefs) []
     where
-      spawnWorkerProcess :: ProcessId -> (DataSpec, NodeId) -> Process ()
+      spawnWorkerProcess :: ProcessId -> (DataDef, NodeId) -> Process ()
       spawnWorkerProcess masterProcess (dataSpec, workerNode) = do
         _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" taskDef dataSpec))
         return ()
@@ -117,9 +117,9 @@ executeOnNodes' taskDef dataSpecs workerNodes = do
           (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
           (Right nextChunk) -> say "got a result" >> collectResults (n-1) (nextChunk:res)
 
-pairSuitableWorkers :: [DataSpec] -> [NodeId] -> IO [(DataSpec, NodeId)]
-pairSuitableWorkers dataSpecs workerNodes = do
-  return $ (zip dataSpecs (cycle workerNodes)) -- TODO implement real distribution
+pairSuitableWorkers :: [DataDef] -> [NodeId] -> IO [(DataDef, NodeId)]
+pairSuitableWorkers dataDefs workerNodes = do
+  return $ (zip dataDefs (cycle workerNodes)) -- TODO implement real distribution
 
 showWorkerNodes :: NodeConfig -> IO ()
 showWorkerNodes (host, port) = do
