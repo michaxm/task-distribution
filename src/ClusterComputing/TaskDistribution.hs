@@ -100,7 +100,8 @@ executeOnNodes taskDef dataSpecs workerNodes = do
 executeOnNodes' :: (Serializable a) => TaskDef -> [DataSpec] -> [NodeId] -> Process [a]
 executeOnNodes' taskDef dataSpecs workerNodes = do
   masterProcess <- getSelfPid
-  forM_ (zip dataSpecs (cycle workerNodes)) (spawnWorkerProcess masterProcess) -- FIXME a worker node should not be allocated twice, let it have an 'occupied' state
+  taskWorkerPairing <- liftIO $ pairSuitableWorkers dataSpecs workerNodes -- TODO have a choice of strategies, TODO do the pairing on the fly, respecting current worker state (see below)
+  forM_ taskWorkerPairing (spawnWorkerProcess masterProcess) -- FIXME a worker node should not be allocated twice, let it have an 'occupied' state
   collectResults (length dataSpecs) []
     where
       spawnWorkerProcess :: ProcessId -> (DataSpec, NodeId) -> Process ()
@@ -115,6 +116,10 @@ executeOnNodes' taskDef dataSpecs workerNodes = do
         case next of
           (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
           (Right nextChunk) -> say "got a result" >> collectResults (n-1) (nextChunk:res)
+
+pairSuitableWorkers :: [DataSpec] -> [NodeId] -> IO [(DataSpec, NodeId)]
+pairSuitableWorkers dataSpecs workerNodes = do
+  return $ (zip dataSpecs (cycle workerNodes)) -- TODO implement real distribution
 
 showWorkerNodes :: NodeConfig -> IO ()
 showWorkerNodes (host, port) = do

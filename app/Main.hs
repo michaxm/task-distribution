@@ -1,7 +1,7 @@
 module Main where
 
 import qualified Data.ByteString.Lazy as BL
-import Data.List (intersperse)
+import Data.List (intersperse, isInfixOf)
 import Data.List.Split (splitOn)
 import System.Console.GetOpt (getOpt, OptDescr(..), ArgOrder(..), ArgDescr(..))
 import System.Environment (getArgs, getProgName, getExecutablePath)
@@ -26,7 +26,7 @@ userSyntaxError :: String -> undefined
 userSyntaxError reason = error $ usageInfo ++ reason ++ "\n"
 
 usageInfo :: String
-usageInfo = "Syntax: master <host> <port> <module:module path|fullbinarydemo> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
+usageInfo = "Syntax: master <host> <port> <module:<module path>|fullbinarydemo:<demo function>:<demo arg>> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
             ++ "| worker <worker host> <worker port>\n"
             ++ "| shutdown\n"
 
@@ -50,8 +50,12 @@ parseMasterOpts args =
     parseTaskSpec args =
       case splitOn ":" args of
        ["module", modulePath] -> SourceCodeSpec modulePath
-       ["fullbinarydemo"] -> FullBinaryDeployment (map (++ " append dynamic over binary transport"))
+       ["fullbinarydemo", demoFunction, demoArg] -> mkBinaryDemoArgs demoFunction demoArg
        _ -> userSyntaxError $ "unknown task specification: " ++ args
+       where
+        mkBinaryDemoArgs :: String -> String -> TaskSpec
+        mkBinaryDemoArgs "append" demoArg = FullBinaryDeployment (map (++ (" "++demoArg)))
+        mkBinaryDemoArgs "filter" demoArg = FullBinaryDeployment (filter (demoArg `isInfixOf`))
     parseDataSpec :: String -> String -> [DataSpec]
     parseDataSpec masterHost args =
       case splitOn ":" args of
