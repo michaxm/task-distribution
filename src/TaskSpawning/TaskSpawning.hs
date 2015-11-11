@@ -24,11 +24,11 @@ executeFullBinaryArg = "executefullbinary"
 -}
 processTask :: TaskDef -> DataDef -> IO TaskResult
 processTask taskDef dataDef = do
-  putStrLn "loading data"
+-- TODO real logging  putStrLn "loading data"
   taskInput <- loadData dataDef
-  putStrLn "applying to task"
+-- TODO real logging putStrLn "applying to task"
   result <- applyTaskLogic taskDef taskInput
-  putStrLn "returning result"
+-- TODO real logging putStrLn "returning result"
   return result
 
 applyTaskLogic :: TaskDef -> TaskInput -> IO TaskResult

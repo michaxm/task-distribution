@@ -13,8 +13,8 @@ dataSource config = DataSource { _loadEntries = loadEntries' }
     loadEntries' :: String -> IO [String]
     loadEntries' filePath =
       putStrLn targetDescription >>
-      hdfsReadFile config filePath `catch` wrapException >>=
-      \t -> (print t >> return t) >>=
+      hdfsReadCompleteFile config filePath `catch` wrapException >>=
+-- TODO real logging (trace)      \t -> (print t >> return t) >>=
       return . lines . TL.unpack
       where
         targetDescription = filePath ++ " " ++ (show config)

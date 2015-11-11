@@ -1,14 +1,15 @@
 module Main where
 
-import qualified Data.ByteString.Lazy as BL
-import Data.List (intersperse, isInfixOf)
+--import qualified Data.ByteString.Lazy as BL
+import Data.List (isInfixOf)
 import Data.List.Split (splitOn)
 import System.Console.GetOpt (getOpt, OptDescr(..), ArgOrder(..), ArgDescr(..))
-import System.Environment (getArgs, getProgName, getExecutablePath)
+import System.Environment (getArgs, getProgName)
 
-import ClusterComputing.TaskDistribution
-import TaskSpawning.TaskTypes
-import TaskSpawning.TaskSpawning (executeFullBinaryArg, fullDeploymentSerialize, fullDeploymentExecute)
+--import TaskSpawning.TaskTypes
+import ClusterComputing.RunComputation
+import ClusterComputing.TaskDistribution (startWorkerNode, showWorkerNodes, shutdownWorkerNodes)
+import TaskSpawning.TaskSpawning (executeFullBinaryArg, fullDeploymentExecute)
 
 main :: IO ()
 main = do
@@ -29,18 +30,6 @@ usageInfo :: String
 usageInfo = "Syntax: master <host> <port> <module:<module path>|fullbinarydemo:<demo function>:<demo arg>> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
             ++ "| worker <worker host> <worker port>\n"
             ++ "| shutdown\n"
-
-data MasterOptions = MasterOptions {
-  _host :: String,
-  _port :: Int,
-  _taskSpec :: TaskSpec,
-  _dataSpecs :: DataSpec
-  }
-
-data TaskSpec = SourceCodeSpec String
-              | FullBinaryDeployment (TaskInput -> TaskResult)
-data DataSpec = SimpleDataSpec Int
-              | HdfsDataSpec HdfsConfig String
 
 parseMasterOpts :: [String] -> MasterOptions
 parseMasterOpts args =
@@ -64,38 +53,3 @@ parseMasterOpts args =
        ["simpledata", numDBs] -> SimpleDataSpec $ read numDBs
        ["hdfs", thriftPort, hdfsPath] -> HdfsDataSpec (masterHost, read thriftPort) hdfsPath
        _ -> userSyntaxError $ "unknown data specification: " ++ args
-
-runMaster :: MasterOptions -> IO ()
-runMaster (MasterOptions masterHost masterPort taskSpec dataSpec) = do
-  taskDef <- buildTaskDef taskSpec
-  dataDefs <- expandDataSpec dataSpec
-  executeDistributed (masterHost, masterPort) taskDef dataDefs resultProcessor
-    where
-      buildTaskDef :: TaskSpec -> IO TaskDef
-      buildTaskDef (SourceCodeSpec modulePath) = do
-        moduleContent <- readFile modulePath
-        return $ mkSourceCodeModule modulePath moduleContent
-      buildTaskDef (FullBinaryDeployment function) = do
-        selfPath <- getExecutablePath
-        fullDeploymentSerialize selfPath function
-
-expandDataSpec :: DataSpec -> IO [DataDef]
-expandDataSpec (HdfsDataSpec config path) = return $ [HdfsData config path]
-expandDataSpec (SimpleDataSpec numDBs) = return $ mkSimpleDataSpecs numDBs
-  where
-    mkSimpleDataSpecs :: Int -> [DataDef]
-    mkSimpleDataSpecs 0 = []
-    mkSimpleDataSpecs n = PseudoDB n : (mkSimpleDataSpecs (n-1))
-
--- TODO streamline, move to lib?
-mkSourceCodeModule :: String -> String -> TaskDef
-mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleName modulePath) moduleContent
-  where
-    strippedModuleName = reverse . takeWhile (/= '/') . drop 1 . dropWhile (/= '.') . reverse
-
--- FIXME type annotation has nothing to do with type safety here!!!
-resultProcessor :: TaskResult -> IO ()
-resultProcessor = putStrLn . join "\n" . map show
-
-join :: String -> [String] -> String
-join separator = concat . intersperse separator

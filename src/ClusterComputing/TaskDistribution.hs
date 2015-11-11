@@ -35,10 +35,10 @@ workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
 workerTask (TaskTransport masterProcess taskName taskDef dataSpec) = do
   say $ "processing: " ++ taskName
   result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError
-  send masterProcess (result :: Either String TaskResult)
+  send masterProcess ((result :: Either String TaskResult) >>= \r -> Right (taskName, r))
   where
     buildError :: SomeException -> Process (Either String TaskResult)
-    buildError e = return $ Left $ "Task execution failed: " ++ (format $ show e)
+    buildError e = return $ Left $ "Task execution (for: "++taskName++") failed: " ++ (format $ show e)
       where
         format [] = []
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
@@ -105,8 +105,8 @@ executeOnNodes' taskDef dataDefs workerNodes = do
   collectResults (length dataDefs) []
     where
       spawnWorkerProcess :: ProcessId -> (DataDef, NodeId) -> Process ()
-      spawnWorkerProcess masterProcess (dataSpec, workerNode) = do
-        _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess "myTask" taskDef dataSpec))
+      spawnWorkerProcess masterProcess (dataDef, workerNode) = do
+        _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess (taskDescription taskDef dataDef) taskDef dataDef))
         return ()
       collectResults :: (Serializable a) => Int -> [[a]] -> Process [a]
       collectResults 0 res = return $ concat $ reverse res
@@ -115,7 +115,7 @@ executeOnNodes' taskDef dataDefs workerNodes = do
         next <- expect
         case next of
           (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
-          (Right nextChunk) -> say "got a result" >> collectResults (n-1) (nextChunk:res)
+          (Right (taskName, nextChunk)) -> say ("got a result for: "++taskName) >> collectResults (n-1) (nextChunk:res)
 
 pairSuitableWorkers :: [DataDef] -> [NodeId] -> IO [(DataDef, NodeId)]
 pairSuitableWorkers dataDefs workerNodes = do
@@ -133,3 +133,15 @@ shutdownWorkerNodes (host, port) = do
     say $ "found " ++ (show $ length workerNodes) ++ " worker nodes, shutting them down"
     forM_ workerNodes terminateSlave
     -- try terminateAllSlaves instead?
+
+taskDescription :: TaskDef -> DataDef -> String
+taskDescription t d = "Task: " ++ (describe t) ++ " " ++ (describe d)
+
+class Describable a where
+  describe :: a -> String
+instance Describable TaskDef where
+  describe (SourceCodeModule n _) = n
+  describe (UnevaluatedThunk _ _) = "user function"
+instance Describable DataDef where
+  describe (HdfsData _ p) = p
+  describe (PseudoDB n) = show n
