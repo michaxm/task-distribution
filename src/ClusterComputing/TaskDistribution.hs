@@ -16,6 +16,7 @@ import Control.Distributed.Process.Serializable (Serializable)
 import Control.Exception.Base (SomeException)
 import Control.Monad (forM_)
 import qualified Data.Binary as B (encode)
+import Data.List (delete)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 
 import ClusterComputing.TaskTransport
@@ -32,11 +33,13 @@ import TaskSpawning.TaskTypes
  This is the final building block of the worker task execution, calling TaskSpawning.processTask.
 -}
 workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
-workerTask (TaskTransport masterProcess taskName taskDef dataSpec) = do
+workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec) = do
   say $ "processing: " ++ taskName
   result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError
-  send masterProcess ((result :: Either String TaskResult) >>= \r -> Right (taskName, r))
+  say $ "processing done for: " ++ taskName
+  send masterProcess (taskMetaData, result :: Either String TaskResult)
   where
+    taskName = _taskName taskMetaData
     buildError :: SomeException -> Process (Either String TaskResult)
     buildError e = return $ Left $ "Task execution (for: "++taskName++") failed: " ++ (format $ show e)
       where
@@ -97,29 +100,47 @@ executeOnNodes taskDef dataDefs workerNodes = do
     then say "no workers => no results (ports open?)" >> return [] 
     else executeOnNodes' taskDef dataDefs workerNodes
 
+data DistributionStrategy = NextFreeNodeWithDataLocality
+
 executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> [NodeId] -> Process [a]
 executeOnNodes' taskDef dataDefs workerNodes = do
   masterProcess <- getSelfPid
-  taskWorkerPairing <- liftIO $ pairSuitableWorkers dataDefs workerNodes -- TODO have a choice of strategies, TODO do the pairing on the fly, respecting current worker state (see below)
-  forM_ taskWorkerPairing (spawnWorkerProcess masterProcess) -- FIXME a worker node should not be allocated twice, let it have an 'occupied' state
-  collectResults (length dataDefs) []
-    where
-      spawnWorkerProcess :: ProcessId -> (DataDef, NodeId) -> Process ()
-      spawnWorkerProcess masterProcess (dataDef, workerNode) = do
-        _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess (taskDescription taskDef dataDef) taskDef dataDef))
-        return ()
-      collectResults :: (Serializable a) => Int -> [[a]] -> Process [a]
-      collectResults 0 res = return $ concat $ reverse res
-      collectResults n res = do --FIXME handler for unexpected types
-        say $ "expecting " ++ (show n) ++ " more responses"
-        next <- expect
-        case next of
-          (Left msg) -> say (msg ++ " failure not handled ...") >> collectResults (n-1) res
-          (Right (taskName, nextChunk)) -> say ("got a result for: "++taskName) >> collectResults (n-1) (nextChunk:res)
+  distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs workerNodes workerNodes (length dataDefs) []
 
-pairSuitableWorkers :: [DataDef] -> [NodeId] -> IO [(DataDef, NodeId)]
-pairSuitableWorkers dataDefs workerNodes = do
-  return $ (zip dataDefs (cycle workerNodes)) -- TODO implement real distribution
+-- try to allocate work until no work can be delegated to the remaining free workers, then collect a single result, repeat
+distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> [NodeId] -> [NodeId] -> Int -> [[a]] -> Process [a]
+-- done waiting:
+distributeWork _ _ _ _ _ _ 0 collected = do
+  say "all tasks accounted for"
+  return $ concat $ reverse collected
+-- done distributing:
+distributeWork _ _ _ [] _ _ numWaiting collected = do
+  say $ "expecting " ++ (show numWaiting) ++ " more responses"
+  (_, nextResult) <- collectSingle
+  distributeWork undefined undefined undefined [] undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
+-- distribute as much as possible, collect single otherwise:
+distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes freeNodes numWaiting collected = do
+  nodesWithData <- return freeNodes -- TODO implement data locality lookup (for free workers, intersect somehow)
+  if null nodesWithData
+    then do
+    say $ "collecting since all workers are busy"
+    (taskMetaData, nextResult) <- collectSingle
+    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes ((_workerNodeId taskMetaData):freeNodes) (numWaiting-1) (maybe collected (:collected) nextResult)
+    else do
+    spawnWorkerProcess (head nodesWithData)
+    say $ "spawning on: " ++ (show $ head nodesWithData)
+    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest workerNodes (delete (head nodesWithData) freeNodes) numWaiting collected
+      where
+        spawnWorkerProcess workerNode = do
+          _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef) workerNode) taskDef dataDef))
+          return ()
+
+collectSingle :: (Serializable a) => Process (TaskMetaData, Maybe a)
+collectSingle = do
+  (taskMetaData, nextResult) <- expect
+  case nextResult of
+   (Left  msg) -> say (msg ++ " failure not handled for "++(_taskName taskMetaData)++"...") >> return (taskMetaData, Nothing)
+   (Right taskResult) -> say ("got a result for: "++(_taskName taskMetaData)) >> return (taskMetaData, Just taskResult)
 
 showWorkerNodes :: NodeConfig -> IO ()
 showWorkerNodes (host, port) = do
