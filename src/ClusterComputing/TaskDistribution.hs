@@ -87,7 +87,7 @@ startWorkerNode (host, port) = do
   putStrLn "initializing worker"
   startSlave backend
 
-executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataDef] -> ([a] -> IO ()) -> IO () -- FIXME [DataDef] is a list only because of testing purposes for now (select other data on different nodes)
+executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataDef] -> ([a] -> IO ())-> IO ()
 executeDistributed (host, port) taskDef dataDefs resultProcessor = do
   backend <- initializeBackend host (show port) rtable
   startMaster backend $ \workerNodes -> do

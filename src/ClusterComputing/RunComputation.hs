@@ -1,6 +1,5 @@
 module ClusterComputing.RunComputation (MasterOptions(..), TaskSpec(..), DataSpec(..), runMaster) where
 
-import Data.List (intersperse)
 import System.Environment (getExecutablePath)
 import qualified System.HDFS.HDFSClient as HDFS --TODO ok to be referenced here? probably yes, but consider again later
 
@@ -20,8 +19,8 @@ data TaskSpec = SourceCodeSpec String
 data DataSpec = SimpleDataSpec Int
               | HdfsDataSpec HdfsConfig String
 
-runMaster :: MasterOptions -> IO ()
-runMaster (MasterOptions masterHost masterPort taskSpec dataSpec) = do
+runMaster :: MasterOptions -> (TaskResult -> IO ()) -> IO ()
+runMaster (MasterOptions masterHost masterPort taskSpec dataSpec) resultProcessor = do
   taskDef <- buildTaskDef taskSpec
   dataDefs <- expandDataSpec dataSpec
   executeDistributed (masterHost, masterPort) taskDef dataDefs resultProcessor
@@ -50,10 +49,3 @@ mkSourceCodeModule :: String -> String -> TaskDef
 mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleName modulePath) moduleContent
   where
     strippedModuleName = reverse . takeWhile (/= '/') . drop 1 . dropWhile (/= '.') . reverse
-
--- FIXME type annotation has nothing to do with type safety here!!!
-resultProcessor :: TaskResult -> IO ()
-resultProcessor = putStrLn . joinStrings "\n" . map show
-
-joinStrings :: String -> [String] -> String
-joinStrings separator = concat . intersperse separator

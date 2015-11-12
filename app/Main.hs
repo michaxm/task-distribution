@@ -1,21 +1,21 @@
 module Main where
 
 --import qualified Data.ByteString.Lazy as BL
-import Data.List (isInfixOf)
+import Data.List (intersperse, isInfixOf)
 import Data.List.Split (splitOn)
 import System.Console.GetOpt (getOpt, OptDescr(..), ArgOrder(..), ArgDescr(..))
 import System.Environment (getArgs, getProgName)
 
---import TaskSpawning.TaskTypes
 import ClusterComputing.RunComputation
 import ClusterComputing.TaskDistribution (startWorkerNode, showWorkerNodes, shutdownWorkerNodes)
 import TaskSpawning.TaskSpawning (executeFullBinaryArg, fullDeploymentExecute)
+import TaskSpawning.TaskTypes
 
 main :: IO ()
 main = do
   args <- getArgs
   case args of
-   ("master" : masterArgs) -> runMaster $ parseMasterOpts masterArgs
+   ("master" : masterArgs) -> runMaster (parseMasterOpts masterArgs) resultProcessor
    ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, (read workerPort))
    ["showworkers"] -> showWorkerNodes ("localhost", 44440)
    ["shutdown"] -> shutdownWorkerNodes ("localhost", 44440)
@@ -53,3 +53,11 @@ parseMasterOpts args =
        ["simpledata", numDBs] -> SimpleDataSpec $ read numDBs
        ["hdfs", thriftPort, hdfsPath] -> HdfsDataSpec (masterHost, read thriftPort) hdfsPath
        _ -> userSyntaxError $ "unknown data specification: " ++ args
+
+resultProcessor :: TaskResult -> IO ()
+resultProcessor res = do
+ putStrLn $ joinStrings "\n" $ map show res
+ putStrLn $ "got " ++ (show $ length res) ++ " results in total"
+
+joinStrings :: String -> [String] -> String
+joinStrings separator = concat . intersperse separator
