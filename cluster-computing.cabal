@@ -24,6 +24,7 @@ library
   other-modules:       ClusterComputing.TaskTransport
                      , TaskSpawning.FunctionSerialization, TaskSpawning.SourceCodeExecution, TaskSpawning.DeployCompleteProgram
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
+                     , Util.ErrorHandling
   ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
   build-depends:       base >= 4.7 && < 5
                      , hint

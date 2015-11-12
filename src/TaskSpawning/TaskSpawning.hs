@@ -7,21 +7,15 @@ import qualified DataAccess.DataSource as DS
 import qualified DataAccess.SimpleDataSource as SDS
 import qualified DataAccess.HdfsDataSource as HDS
 
-import TaskSpawning.DeployCompleteProgram
+import qualified TaskSpawning.DeployCompleteProgram as CP
 import TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction)
 import TaskSpawning.SourceCodeExecution (loadTask)
 import TaskSpawning.TaskTypes
+import Util.ErrorHandling
 
 executeFullBinaryArg :: String
 executeFullBinaryArg = "executefullbinary"
 
-{-
- The process for collecting and executing the needed bits is slightly different for
- different task types:
-
- - source code execution via hint
-   ... is happy to  TODO continue...
--}
 processTask :: TaskDef -> DataDef -> IO TaskResult
 processTask taskDef dataDef = do
 -- TODO real logging  putStrLn "loading data"
@@ -38,7 +32,7 @@ applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput = do
   putStrLn "applying data"
   return $ taskFn taskInput
 -- Full binary deployment step 2: run within worker process to deploy the distributed task binary
-applyTaskLogic (UnevaluatedThunk function program) taskInput = deployAndRunFullBinary program function executeFullBinaryArg taskInput
+applyTaskLogic (UnevaluatedThunk function program) taskInput = CP.deployAndRunFullBinary program function executeFullBinaryArg taskInput
 
 -- FIXME port not open (file not found?) error silently dropped
 loadData :: DataDef -> IO TaskResult
@@ -57,12 +51,12 @@ fullDeploymentSerialize programPath function = do
 {-
  Full binary deployment step 3: run within the spawned process for the distributed executable, applies data to distributed task.
 -}
-fullDeploymentExecute :: BL.ByteString -> TaskInput -> IO ()
-fullDeploymentExecute taskFn taskInput = do
-  --TODO real logging
---  putStrLn $ "deserializing task logic" ++ (show taskFn)
+fullDeploymentExecute :: String -> FilePath -> IO ()
+fullDeploymentExecute taskFnArg taskInputFilePath = do
+  -- TODO real logging
+  taskFn <- addErrorPrefix ("Could not read task logic: " ++(show taskFnArg)) $ return $ (read taskFnArg :: BL.ByteString)
+--  putStrLn $ "deserializing task logic" -- ++ (show taskFn)
   function <- deserializeFunction taskFn :: IO (TaskInput -> TaskResult)
---  putStrLn "calculating result"
-  result <- return $ function taskInput
---  putStrLn "printing result"
-  print result
+--  serializeFunction function >>= \s -> putStrLn $ "task deserialization done for: " ++ (show $ BL.unpack s)
+--  putStrLn $ "reading data from " ++ taskInputFilePath
+  CP.binaryExecution function taskInputFilePath

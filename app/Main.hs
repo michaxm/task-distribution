@@ -20,7 +20,7 @@ main = do
    ["showworkers"] -> showWorkerNodes ("localhost", 44440)
    ["shutdown"] -> shutdownWorkerNodes ("localhost", 44440)
    -- this is an expected entry point for every client program using full binary serialization (as demonstrated in "fullbinarydemo")
-   [executeFullBinaryArg, taskFn, taskInput] -> fullDeploymentExecute (read taskFn) (read taskInput)
+   [executeFullBinaryArg, taskFn, taskInputFilePath] -> fullDeploymentExecute taskFn taskInputFilePath
    _ -> userSyntaxError "unknown mode"
 
 userSyntaxError :: String -> undefined

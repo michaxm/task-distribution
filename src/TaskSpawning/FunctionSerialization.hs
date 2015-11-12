@@ -5,6 +5,8 @@ import qualified Data.ByteString.Lazy as L
 import Data.Typeable (Typeable)
 import qualified GHC.Packing as P
 
+import Util.ErrorHandling
+
 serializeFunction :: (Typeable a, Typeable b) => (a -> b) -> IO L.ByteString
 serializeFunction = serialize
 
@@ -15,4 +17,4 @@ deserializeFunction :: (Typeable a, Typeable b) => L.ByteString -> IO (a -> b)
 deserializeFunction = deserialize
 
 deserialize :: (Typeable a) => L.ByteString -> IO a
-deserialize = P.deserialize . decode
+deserialize bs = addErrorPrefix ("Cout not deserialize "++(show bs)) $ P.deserialize $ decode bs
