@@ -19,6 +19,7 @@ import qualified Data.Binary as B (encode)
 import Data.List (delete)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 
+import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.TaskTransport
 import TaskSpawning.TaskSpawning (processTask)
 import TaskSpawning.TaskTypes
@@ -105,31 +106,31 @@ data DistributionStrategy = NextFreeNodeWithDataLocality
 executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> [NodeId] -> Process [a]
 executeOnNodes' taskDef dataDefs workerNodes = do
   masterProcess <- getSelfPid
-  distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs workerNodes workerNodes (length dataDefs) []
+  distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs workerNodes 0 workerNodes (length dataDefs) []
 
 -- try to allocate work until no work can be delegated to the remaining free workers, then collect a single result, repeat
-distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> [NodeId] -> [NodeId] -> Int -> [[a]] -> Process [a]
+distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> [NodeId] -> Int -> [NodeId] -> Int -> [[a]] -> Process [a]
 -- done waiting:
-distributeWork _ _ _ _ _ _ 0 collected = do
+distributeWork _ _ _ _ _ _ _ 0 collected = do
   say "all tasks accounted for"
   return $ concat $ reverse collected
 -- done distributing:
-distributeWork _ _ _ [] _ _ numWaiting collected = do
+distributeWork _ _ _ [] _ _ _ numWaiting collected = do
   say $ "expecting " ++ (show numWaiting) ++ " more responses"
   (_, nextResult) <- collectSingle
-  distributeWork undefined undefined undefined [] undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
+  distributeWork undefined undefined undefined [] undefined undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
 -- distribute as much as possible, collect single otherwise:
-distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes freeNodes numWaiting collected = do
-  nodesWithData <- return freeNodes -- TODO implement data locality lookup (for free workers, intersect somehow)
+distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes numBusyNodes freeNodes numWaiting collected = do
+  nodesWithData <- liftIO $ findNodesWithData dataDef freeNodes
   if null nodesWithData
     then do
-    say $ "collecting since all workers are busy"
+    if numBusyNodes <= 0 then error "no worker accepts the task" else say $ "collecting since all workers are busy"
     (taskMetaData, nextResult) <- collectSingle
-    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes ((_workerNodeId taskMetaData):freeNodes) (numWaiting-1) (maybe collected (:collected) nextResult)
+    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes (numBusyNodes-1) ((_workerNodeId taskMetaData):freeNodes) (numWaiting-1) (maybe collected (:collected) nextResult)
     else do
     spawnWorkerProcess (head nodesWithData)
     say $ "spawning on: " ++ (show $ head nodesWithData)
-    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest workerNodes (delete (head nodesWithData) freeNodes) numWaiting collected
+    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest workerNodes (numBusyNodes+1) (delete (head nodesWithData) freeNodes) numWaiting collected
       where
         spawnWorkerProcess workerNode = do
           _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef) workerNode) taskDef dataDef))

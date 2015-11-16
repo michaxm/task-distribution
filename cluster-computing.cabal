@@ -21,7 +21,7 @@ library
                      , ClusterComputing.TaskDistribution
                      , DataAccess.DataSource
                      , TaskSpawning.TaskSpawning
-  other-modules:       ClusterComputing.TaskTransport
+  other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality
                      , TaskSpawning.FunctionSerialization, TaskSpawning.SourceCodeExecution, TaskSpawning.DeployCompleteProgram
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
                      , Util.ErrorHandling
@@ -40,6 +40,7 @@ library
                      , rank1dynamic
                      , distributed-static
                      , hdfs-thrift-client, text
+                     , split
   default-language:    Haskell2010
 
 executable cluster-computing
@@ -52,13 +53,30 @@ executable cluster-computing
                      , cluster-computing
   default-language:    Haskell2010
 
-test-suite cluster-computing-test
+test-suite node-matching
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  main-is:             Spec.hs
+                     , src
+  main-is:             NodeMatchingTests.hs
+  other-modules:       TaskSpawning.TaskTypes
+                     , ClusterComputing.DataLocality
   build-depends:       base
+                     , hspec
                      , cluster-computing
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+                     , hint
+                     , binary
+                     , temporary, filepath, directory
+                     , transformers
+                     , bytestring
+                     , packman
+                     , process
+                     , distributed-process
+                     , distributed-process-simplelocalnet
+                     , rank1dynamic
+                     , distributed-static
+                     , hdfs-thrift-client, text
+                     , split
+  ghc-options:         -O0
   default-language:    Haskell2010
 
 source-repository head
