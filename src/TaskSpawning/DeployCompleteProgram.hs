@@ -30,7 +30,7 @@ deployAndRunFullBinary program taskFunction mainArg taskInput =
         \taskInputFilePath -> do
             -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
             readProcessWithExitCode filePath [mainArg, show taskFunction, taskInputFilePath] "")
-      putStrLn $ "... run completed: " ++ (show executionOutput)
+      putStrLn $ "... run completed" -- TODO trace logging ++ (show executionOutput)
       result <- expectSuccess executionOutput
       parseResult result
     )

@@ -7,7 +7,7 @@ import System.Console.GetOpt (getOpt, OptDescr(..), ArgOrder(..), ArgDescr(..))
 import System.Environment (getArgs, getProgName)
 
 import ClusterComputing.RunComputation
-import ClusterComputing.TaskDistribution (startWorkerNode, showWorkerNodes, shutdownWorkerNodes)
+import ClusterComputing.TaskDistribution (startWorkerNode, showWorkerNodes, showWorkerNodesWithData, shutdownWorkerNodes)
 import TaskSpawning.TaskSpawning (executeFullBinaryArg, fullDeploymentExecute)
 import TaskSpawning.TaskTypes
 
@@ -17,11 +17,15 @@ main = do
   case args of
    ("master" : masterArgs) -> runMaster (parseMasterOpts masterArgs) resultProcessor
    ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, (read workerPort))
-   ["showworkers"] -> showWorkerNodes ("localhost", 44440)
-   ["shutdown"] -> shutdownWorkerNodes ("localhost", 44440)
+   ["showworkers"] -> showWorkerNodes localConfig
+   ["workerswithhdfsdata", host, port, hdfsFilePath] -> showWorkerNodesWithData localConfig (host, read port) hdfsFilePath
+   ["shutdown"] -> shutdownWorkerNodes localConfig
    -- this is an expected entry point for every client program using full binary serialization (as demonstrated in "fullbinarydemo")
    [executeFullBinaryArg, taskFn, taskInputFilePath] -> fullDeploymentExecute taskFn taskInputFilePath
    _ -> userSyntaxError "unknown mode"
+
+localConfig :: HdfsConfig
+localConfig = ("localhost", 44440)
 
 userSyntaxError :: String -> undefined
 userSyntaxError reason = error $ usageInfo ++ reason ++ "\n"
@@ -29,6 +33,8 @@ userSyntaxError reason = error $ usageInfo ++ reason ++ "\n"
 usageInfo :: String
 usageInfo = "Syntax: master <host> <port> <module:<module path>|fullbinarydemo:<demo function>:<demo arg>> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
             ++ "| worker <worker host> <worker port>\n"
+            ++ "| showworkers\n"
+            ++ "| workerswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
             ++ "| shutdown\n"
 
 parseMasterOpts :: [String] -> MasterOptions

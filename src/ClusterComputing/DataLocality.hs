@@ -9,14 +9,12 @@ import Data.List.Split (splitOn)
 import Data.Ord (comparing)
 import System.HDFS.HDFSClient
 
-import TaskSpawning.TaskTypes
-
 {-
  Filters the given nodes to those with any of the file blocks, ordered by the number of file blocks (not regarding individual file block length).
 -}
-findNodesWithData :: DataDef -> [NodeId] -> IO [NodeId]
-findNodesWithData dataDef nodes = do
-  hostsWithData <- hdfsFileDistribution (_config dataDef) (_filePath dataDef)
+findNodesWithData :: (String, Int) -> String -> [NodeId] -> IO [NodeId]
+findNodesWithData config hdfsFilePath nodes = do
+  hostsWithData <- hdfsFileDistribution config hdfsFilePath
   mergedNodeIds <- return $ map fst $ sortOn snd $ merge matcher merger nodes hostsWithData
 -- TODO real logging
 --  print hostsWithData

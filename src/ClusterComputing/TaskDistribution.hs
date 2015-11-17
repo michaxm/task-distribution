@@ -2,6 +2,7 @@ module ClusterComputing.TaskDistribution (
   startWorkerNode,
   executeDistributed,
   showWorkerNodes,
+  showWorkerNodesWithData,
   shutdownWorkerNodes) where
 
 import Control.Distributed.Process (Process, ProcessId, NodeId,
@@ -121,7 +122,7 @@ distributeWork _ _ _ [] _ _ _ numWaiting collected = do
   distributeWork undefined undefined undefined [] undefined undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
 -- distribute as much as possible, collect single otherwise:
 distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes numBusyNodes freeNodes numWaiting collected = do
-  nodesWithData <- liftIO $ findNodesWithData dataDef freeNodes
+  nodesWithData <- liftIO $ findNodesWithData (_config dataDef) (_filePath dataDef) freeNodes
   if null nodesWithData
     then do
     if numBusyNodes <= 0 then error "no worker accepts the task" else say $ "collecting since all workers are busy"
@@ -144,9 +145,19 @@ collectSingle = do
    (Right taskResult) -> say ("got a result for: "++(_taskName taskMetaData)) >> return (taskMetaData, Just taskResult)
 
 showWorkerNodes :: NodeConfig -> IO ()
-showWorkerNodes (host, port) = do
+showWorkerNodes config = withWorkerNodes config (
+  \workerNodes -> putStrLn ("Worker nodes: " ++ show workerNodes))
+
+showWorkerNodesWithData :: NodeConfig -> NodeConfig -> String -> IO ()
+showWorkerNodesWithData workerConfig hdfsConfig hdfsFilePath = withWorkerNodes workerConfig (
+  \workerNodes -> do 
+    nodesWithData <- findNodesWithData hdfsConfig hdfsFilePath workerNodes
+    putStrLn $ "Nodes with data: " ++ show nodesWithData)
+
+withWorkerNodes :: NodeConfig -> ([NodeId] -> IO ()) -> IO ()
+withWorkerNodes (host, port) action = do
   backend <- initializeBackend host (show port) initRemoteTable
-  startMaster backend (\workerNodes -> liftIO . putStrLn $ "Slaves: " ++ show workerNodes)
+  startMaster backend (\workerNodes -> liftIO (action workerNodes))
 
 shutdownWorkerNodes :: NodeConfig -> IO ()
 shutdownWorkerNodes (host, port) = do
