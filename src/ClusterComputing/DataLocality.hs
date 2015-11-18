@@ -8,18 +8,18 @@ import Data.List (sortBy)
 import Data.List.Split (splitOn)
 import Data.Ord (comparing)
 import System.HDFS.HDFSClient
+import qualified System.Log.Logger as L
 
 {-
  Filters the given nodes to those with any of the file blocks, ordered by the number of file blocks (not regarding individual file block length).
 -}
 findNodesWithData :: (String, Int) -> String -> [NodeId] -> IO [NodeId]
 findNodesWithData config hdfsFilePath nodes = do
+  L.infoM L.rootLoggerName ("All nodes: " ++ (show nodes))
   hostsWithData <- hdfsFileDistribution config hdfsFilePath
+  L.infoM L.rootLoggerName ("Nodes with data: " ++ (show hostsWithData))
   mergedNodeIds <- return $ map fst $ sortOn snd $ merge matcher merger nodes hostsWithData
--- TODO real logging
---  print hostsWithData
---  print nodes
---  print mergedNodeIds
+  (if null mergedNodeIds then L.errorM else L.infoM) L.rootLoggerName ("Merged nodes: " ++ (show mergedNodeIds))
   return mergedNodeIds
     where
       matcher node (hdfsName, _) = nodeMatcher (show node) hdfsName -- HACK uses show to access nodeId data

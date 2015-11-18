@@ -6,7 +6,7 @@ module ClusterComputing.TaskDistribution (
   shutdownWorkerNodes) where
 
 import Control.Distributed.Process (Process, ProcessId, NodeId,
-                                    say, getSelfPid, spawn, send, expect, liftIO, catch,
+                                    say, getSelfPid, spawn, send, expect, catch,
                                     RemoteTable)
 import Control.Distributed.Process.Backend.SimpleLocalnet (initializeBackend, startMaster, startSlave, terminateSlave)
 import qualified Control.Distributed.Process.Serializable as PS
@@ -16,6 +16,7 @@ import Control.Distributed.Process.Node (initRemoteTable)
 import Control.Distributed.Process.Serializable (Serializable)
 import Control.Exception.Base (SomeException)
 import Control.Monad (forM_)
+import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
 import Data.List (delete)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
@@ -150,12 +151,12 @@ showWorkerNodes config = withWorkerNodes config (
 
 showWorkerNodesWithData :: NodeConfig -> NodeConfig -> String -> IO ()
 showWorkerNodesWithData workerConfig hdfsConfig hdfsFilePath = withWorkerNodes workerConfig (
-  \workerNodes -> do 
+  \workerNodes -> do
     nodesWithData <- findNodesWithData hdfsConfig hdfsFilePath workerNodes
-    putStrLn $ "Nodes with data: " ++ show nodesWithData)
+    putStrLn $ "Found these nodes with data: " ++ show nodesWithData)
 
 withWorkerNodes :: NodeConfig -> ([NodeId] -> IO ()) -> IO ()
-withWorkerNodes (host, port) action = do
+withWorkerNodes (host, port) action = liftIO $ do
   backend <- initializeBackend host (show port) initRemoteTable
   startMaster backend (\workerNodes -> liftIO (action workerNodes))
 
