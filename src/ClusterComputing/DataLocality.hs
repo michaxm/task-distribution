@@ -7,6 +7,7 @@ import Control.Distributed.Process (NodeId)
 import Data.List (sortBy)
 import Data.List.Split (splitOn)
 import Data.Ord (comparing)
+import Prelude hiding (log)
 import System.HDFS.HDFSClient
 import qualified System.Log.Logger as L
 
@@ -15,27 +16,53 @@ import qualified System.Log.Logger as L
 -}
 findNodesWithData :: (String, Int) -> String -> [NodeId] -> IO [NodeId]
 findNodesWithData config hdfsFilePath nodes = do
-  L.infoM L.rootLoggerName ("All nodes: " ++ (show nodes))
+  log ("All nodes: " ++ (show nodes))
   hostsWithData <- hdfsFileDistribution config hdfsFilePath
-  L.infoM L.rootLoggerName ("Nodes with data: " ++ (show hostsWithData))
-  mergedNodeIds <- return $ map fst $ sortOn snd $ merge matcher merger nodes hostsWithData
+  log ("Hdfs hosts with data: " ++ (show hostsWithData))
+  hosts <- readHostNames
+  log (show hosts)
+  mergedNodeIds <- return $ map fst $ sortOn snd $ merge (matcher hosts) merger nodes hostsWithData
   (if null mergedNodeIds then L.errorM else L.infoM) L.rootLoggerName ("Merged nodes: " ++ (show mergedNodeIds))
   return mergedNodeIds
     where
-      matcher node (hdfsName, _) = nodeMatcher (show node) hdfsName -- HACK uses show to access nodeId data
+      matcher hosts node (hdfsName, _) = nodeMatcher hosts (show node) hdfsName -- HACK uses show to access nodeId data
       merger :: NodeId -> (String, Int) -> (NodeId, Int)
       merger nid (_, n) = (nid, n)
 
-nodeMatcher ::String -> String -> Bool
-nodeMatcher node hdfsName = hostSynonyms (extractHdfsHost hdfsName) == hostSynonyms (extractNodeIdHost node)
+log :: String -> IO ()
+log = L.infoM L.rootLoggerName
+
+readHostNames :: IO [(String, String)]
+readHostNames = readFile "/etc/hosts" >>= return . parseHostFile
+    where
+      parseHostFile :: String -> [(String, String)]
+      parseHostFile = concat . map parseHosts . filter comments . lines
+        where
+          comments [] = False
+          comments ('#':_) = False
+          comments _ = True
+          parseHosts :: String -> [(String, String)]
+          parseHosts = parseHosts' . splitOn " " . collapseWhites . map replaceTabs
+            where
+              replaceTabs :: Char -> Char
+              replaceTabs '\t' = ' '
+              replaceTabs c = c
+              collapseWhites :: String -> String
+              collapseWhites (' ':' ':rest) = ' ':(collapseWhites rest)
+              collapseWhites (c:rest) = c:(collapseWhites rest)
+              collapseWhites r = r
+              parseHosts' :: [String] -> [(String, String)]
+              parseHosts' es = if length es < 2 then [] else map (\v -> (head es,v)) (tail es)
+
+nodeMatcher ::[(String, String)] -> String -> String -> Bool
+nodeMatcher hosts node hdfsName = (extractHdfsHost hdfsName) == (extractNodeIdHost node)
   where
     -- HACK: extracts the host name from "nid://localhost:44441:0"
-    extractNodeIdHost = dropWhile (=='/') . head . drop 1 . splitOn ":"
+    extractNodeIdHost = lookupHostname . dropWhile (=='/') . head . drop 1 . splitOn ":"
     -- HACK: extracts the host name from "127.0.0.1:50010"
-    extractHdfsHost = head . splitOn ":"
-    -- HACK: localhost == 127.0.0.1, TODO at some time we will need a worder node / hdfs host config anyway, hopefully making all these HACKs obsolete
-    hostSynonyms "127.0.0.1" = "localhost"
-    hostSynonyms s = s
+    extractHdfsHost = lookupHostname . head . splitOn ":"
+    lookupHostname :: String -> String
+    lookupHostname k = maybe k id (lookup k hosts)
 
 {-
  Merges left with right: for each left, take the first match in right, ignoring other possible matches.
@@ -48,7 +75,6 @@ merge matcher merger = merge'
     merge' (a:as) bs = maybe restMerge (:restMerge) (merge'' bs)
       where
         restMerge = merge' as bs
---        merge'' :: [b] -> Maybe c
         merge'' [] = Nothing
         merge'' (b:bs') = if matcher a b then Just (merger a b) else merge'' bs'
 
