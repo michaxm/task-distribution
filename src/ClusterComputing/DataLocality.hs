@@ -18,11 +18,11 @@ findNodesWithData :: (String, Int) -> String -> [NodeId] -> IO [NodeId]
 findNodesWithData config hdfsFilePath nodes = do
   log ("All nodes: " ++ (show nodes))
   hostsWithData <- hdfsFileDistribution config hdfsFilePath
-  log ("Hdfs hosts with data: " ++ (show hostsWithData))
+  (if null hostsWithData then L.errorM else L.infoM) L.rootLoggerName ("Hdfs hosts with data: " ++ (show hostsWithData))
   hosts <- readHostNames
   log (show hosts)
   mergedNodeIds <- return $ map fst $ sortOn snd $ merge (matcher hosts) merger nodes hostsWithData
-  (if null mergedNodeIds then L.errorM else L.infoM) L.rootLoggerName ("Merged nodes: " ++ (show mergedNodeIds))
+  log ("Merged nodes: " ++ (show mergedNodeIds))
   return mergedNodeIds
     where
       matcher hosts node (hdfsName, _) = nodeMatcher hosts (show node) hdfsName -- HACK uses show to access nodeId data
