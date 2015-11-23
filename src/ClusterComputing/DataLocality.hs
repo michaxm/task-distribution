@@ -33,7 +33,10 @@ log :: String -> IO ()
 log = L.infoM L.rootLoggerName
 
 readHostNames :: IO [(String, String)]
-readHostNames = readFile "/etc/hosts" >>= return . parseHostFile
+readHostNames = do
+  allHosts <- readFile "/etc/hosts" >>= return . parseHostFile
+  extraHosts <- readFile "etc/hostconfig" >>= return . parseHostFile
+  return $ allHosts ++ extraHosts
     where
       parseHostFile :: String -> [(String, String)]
       parseHostFile = concat . map parseHosts . filter comments . lines
