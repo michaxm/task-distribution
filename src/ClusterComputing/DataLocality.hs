@@ -1,6 +1,7 @@
 module ClusterComputing.DataLocality (
   findNodesWithData,
-  nodeMatcher -- visible for testing
+  -- visible for testing:
+  nodeMatcher
   ) where
 
 import Control.Distributed.Process (NodeId)
@@ -9,28 +10,26 @@ import Data.List.Split (splitOn)
 import Data.Ord (comparing)
 import Prelude hiding (log)
 import System.HDFS.HDFSClient
-import qualified System.Log.Logger as L
+
+import Util.Logging
 
 {-
  Filters the given nodes to those with any of the file blocks, ordered by the number of file blocks (not regarding individual file block length).
 -}
 findNodesWithData :: (String, Int) -> String -> [NodeId] -> IO [NodeId]
 findNodesWithData config hdfsFilePath nodes = do
-  log ("All nodes: " ++ (show nodes))
+  logInfo ("All nodes: " ++ (show nodes))
   hostsWithData <- hdfsFileDistribution config hdfsFilePath
-  (if null hostsWithData then L.errorM else L.infoM) L.rootLoggerName ("Hdfs hosts with data: " ++ (show hostsWithData))
+  (if null hostsWithData then logError else logInfo) ("Hdfs hosts with data: " ++ (show hostsWithData))
   hosts <- readHostNames
-  log (show hosts)
+  logDebug (show hosts)
   mergedNodeIds <- return $ map fst $ sortOn snd $ merge (matcher hosts) merger nodes hostsWithData
-  log ("Merged nodes: " ++ (show mergedNodeIds))
+  logInfo ("Merged nodes: " ++ (show mergedNodeIds))
   return mergedNodeIds
     where
       matcher hosts node (hdfsName, _) = nodeMatcher hosts (show node) hdfsName -- HACK uses show to access nodeId data
       merger :: NodeId -> (String, Int) -> (NodeId, Int)
       merger nid (_, n) = (nid, n)
-
-log :: String -> IO ()
-log = L.infoM L.rootLoggerName
 
 readHostNames :: IO [(String, String)]
 readHostNames = do

@@ -4,10 +4,7 @@ import Test.Hspec
 import ClusterComputing.DataLocality (nodeMatcher)
 
 main :: IO ()
-main = hspec spec
-
-spec :: Spec
-spec = do
+main = hspec $ do
   describe "ClusterComputing.DataLocality" $ do
         context "Node/Host matching" $ do
             it "does not match everything" $ do

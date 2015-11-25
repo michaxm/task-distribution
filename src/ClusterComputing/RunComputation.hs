@@ -5,7 +5,7 @@ import qualified System.HDFS.HDFSClient as HDFS --TODO ok to be referenced here?
 
 import ClusterComputing.TaskDistribution
 import TaskSpawning.TaskTypes
-import TaskSpawning.TaskSpawning (fullDeploymentSerialize)
+import TaskSpawning.TaskSpawning (fullDeploymentExecutionRemote, objectCodeExecutionRemote)
 
 data MasterOptions = MasterOptions {
   _host :: String,
@@ -14,8 +14,14 @@ data MasterOptions = MasterOptions {
   _dataSpecs :: DataSpec
   }
 
+{-
+ ObjectCodeModuleDeployment:
+ - the function here is ignored, it only forces the compilation of the contained module
+ - this could contain configurations for the object code file path etc. in the future
+-}
 data TaskSpec = SourceCodeSpec String
               | FullBinaryDeployment (TaskInput -> TaskResult)
+              | ObjectCodeModuleDeployment (TaskInput -> TaskResult)
 data DataSpec = SimpleDataSpec Int
               | HdfsDataSpec HdfsConfig String
 
@@ -31,7 +37,8 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec) resultProcesso
         return $ mkSourceCodeModule modulePath moduleContent
       buildTaskDef (FullBinaryDeployment function) = do
         selfPath <- getExecutablePath
-        fullDeploymentSerialize selfPath function
+        fullDeploymentExecutionRemote selfPath function
+      buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeExecutionRemote
 
 expandDataSpec :: DataSpec -> IO [DataDef]
 expandDataSpec (HdfsDataSpec config path) = do

@@ -19,7 +19,10 @@ data TaskDef =
   | UnevaluatedThunk {
     _unevaluatedThunk :: ByteString,
     _deployable :: ByteString
-    } deriving (Typeable, Generic)
+    }
+  | ObjectCodeModule {
+    _objectCode :: ByteString
+  } deriving (Typeable, Generic)
 instance Binary TaskDef
 instance Serializable TaskDef
 

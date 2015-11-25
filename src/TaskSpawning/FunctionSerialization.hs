@@ -17,4 +17,4 @@ deserializeFunction :: (Typeable a, Typeable b) => L.ByteString -> IO (a -> b)
 deserializeFunction = deserialize
 
 deserialize :: (Typeable a) => L.ByteString -> IO a
-deserialize bs = addErrorPrefix ("Cout not deserialize "++(show bs)) $ P.deserialize $ decode bs
+deserialize bs = withErrorPrefix ("Could not deserialize: "++(show bs)) $ P.deserialize $ decode bs

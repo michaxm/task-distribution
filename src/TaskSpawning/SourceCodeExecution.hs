@@ -21,7 +21,7 @@ loadTask resultType moduleName moduleContent = do
 
 loadTaskDef :: Typeable a => a -> String -> String -> I.Interpreter a
 loadTaskDef resultType moduleName moduleContent = do
-  I.setImports ["Prelude"]
+  I.setImports ["Prelude"] -- TODO additional dependency configuration not yet implemented
   sayI $ "Interpreter: Loading static modules and: " ++ moduleName ++ " ..."
   withTempModuleFile moduleName moduleContent loadModule
   func <- I.interpret "task" resultType
@@ -43,7 +43,7 @@ withTempModuleFile moduleName moduleContent moduleAction = do
     writeModuleFile :: IO (FilePath, FilePath)
     writeModuleFile = do
       tempDir <- getTemporaryDirectory
-      moduleTempDir <- createTempDirectory tempDir moduleName -- FIXME hierarchical module names
+      moduleTempDir <- createTempDirectory tempDir moduleName -- FIXME a) hierarchical module names, b) could probably be easier implemented with withSystemTempDirectory, too
       moduleFile <- return $ moduleTempDir </> moduleName ++ ".hs"
       writeFile moduleFile moduleContent
       return (moduleFile, moduleTempDir)

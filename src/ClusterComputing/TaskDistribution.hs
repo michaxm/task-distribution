@@ -21,6 +21,7 @@ import qualified Data.Binary as B (encode)
 import Data.List (delete)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 
+import ClusterComputing.LogConfiguration
 import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.TaskTransport
 import TaskSpawning.TaskSpawning (processTask)
@@ -86,6 +87,7 @@ type NodeConfig = (String, Int)
 
 startWorkerNode :: NodeConfig -> IO ()
 startWorkerNode (host, port) = do
+  initDefaultLogging (show port)
   backend <- initializeBackend host (show port) rtable
   putStrLn "initializing worker"
   startSlave backend
@@ -176,6 +178,7 @@ class Describable a where
 instance Describable TaskDef where
   describe (SourceCodeModule n _) = n
   describe (UnevaluatedThunk _ _) = "user function"
+  describe (ObjectCodeModule _) = "object code module"
 instance Describable DataDef where
   describe (HdfsData _ p) = p
   describe (PseudoDB n) = show n

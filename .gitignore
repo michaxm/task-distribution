@@ -2,6 +2,6 @@
 */#*#
 *_flymake.hs
 .stack-work
-log/cluster-computing.log
+log/cluster-computing*.log
 etc/hostconfig
 tmp
