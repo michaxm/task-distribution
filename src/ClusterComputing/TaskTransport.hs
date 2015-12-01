@@ -13,7 +13,8 @@ data TaskTransport = TaskTransport {
   _masterProcess :: ProcessId,
   _taskMetaData :: TaskMetaData,
   _taskDef :: TaskDef,
-  _dataSpec :: DataDef
+  _dataDef :: DataDef,
+  _resultDef :: ResultDef
   } deriving (Typeable, Generic)
 instance Binary TaskTransport
 instance Serializable TaskTransport

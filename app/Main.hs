@@ -18,7 +18,7 @@ main = do
   initDefaultLogging ""
   args <- getArgs
   case args of
-   ("master" : masterArgs) -> runMaster (parseMasterOpts masterArgs) resultProcessor
+   ("master" : masterArgs) -> runMaster (parseMasterOpts masterArgs)
    ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, (read workerPort))
    ["showworkers"] -> showWorkerNodes localConfig
    ["workerswithhdfsdata", host, port, hdfsFilePath] -> showWorkerNodesWithData localConfig (host, read port) hdfsFilePath
@@ -34,7 +34,7 @@ userSyntaxError :: String -> undefined
 userSyntaxError reason = error $ usageInfo ++ reason ++ "\n"
 
 usageInfo :: String
-usageInfo = "Syntax: master <host> <port> <module:<module path>|fullbinarydemo:<demo function>:<demo arg>|objectcodedemo> <simpledata:numDBs|hdfs:<thrift server port>:<file path>\n"
+usageInfo = "Syntax: master <host> <port> <module:<module path>|fullbinarydemo:<demo function>:<demo arg>|objectcodedemo> <simpledata:numDBs|hdfs:<thrift server port>:<file path> <collectonmaster>\n"
             ++ "| worker <worker host> <worker port>\n"
             ++ "| showworkers\n"
             ++ "| workerswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
@@ -43,7 +43,7 @@ usageInfo = "Syntax: master <host> <port> <module:<module path>|fullbinarydemo:<
 parseMasterOpts :: [String] -> MasterOptions
 parseMasterOpts args =
   case args of
-   [masterHost, port, taskSpec, dataSpec] -> MasterOptions masterHost (read port) (parseTaskSpec taskSpec) (parseDataSpec masterHost dataSpec)
+   [masterHost, port, taskSpec, dataSpec, resultSpec] -> MasterOptions masterHost (read port) (parseTaskSpec taskSpec) (parseDataSpec masterHost dataSpec) (parseResultSpec resultSpec)
    _ -> userSyntaxError "wrong number of master options"
   where
     parseTaskSpec :: String -> TaskSpec
@@ -63,6 +63,10 @@ parseMasterOpts args =
        ["simpledata", numDBs] -> SimpleDataSpec $ read numDBs
        ["hdfs", thriftPort, hdfsPath] -> HdfsDataSpec (masterHost, read thriftPort) hdfsPath
        _ -> userSyntaxError $ "unknown data specification: " ++ args
+    parseResultSpec args =
+      case splitOn ":" args of
+       ["collectonmaster"] -> CollectOnMaster resultProcessor
+       _ -> userSyntaxError $ "unknown result specification: " ++ args
 
 resultProcessor :: TaskResult -> IO ()
 resultProcessor res = do

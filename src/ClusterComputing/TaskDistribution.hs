@@ -37,11 +37,11 @@ import TaskSpawning.TaskTypes
  This is the final building block of the worker task execution, calling TaskSpawning.processTask.
 -}
 workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
-workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec) = do
+workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec resultSpec) = do
   say $ "processing: " ++ taskName
-  result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError
+  result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError :: Process (Either String TaskResult)
   say $ "processing done for: " ++ taskName
-  send masterProcess (taskMetaData, result :: Either String TaskResult)
+  handleResult resultSpec result
   where
     taskName = _taskName taskMetaData
     buildError :: SomeException -> Process (Either String TaskResult)
@@ -50,6 +50,7 @@ workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec) = do
         format [] = []
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
+    handleResult ReturnAsMessage result = send masterProcess (taskMetaData, result)
 
 -- template haskell vs. its result
 -- needs: {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}
@@ -92,52 +93,52 @@ startWorkerNode (host, port) = do
   putStrLn "initializing worker"
   startSlave backend
 
-executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataDef] -> ([a] -> IO ())-> IO ()
-executeDistributed (host, port) taskDef dataDefs resultProcessor = do
+executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataDef] -> ResultDef -> ([a] -> IO ())-> IO ()
+executeDistributed (host, port) taskDef dataDefs resultDef resultProcessor = do
   backend <- initializeBackend host (show port) rtable
   startMaster backend $ \workerNodes -> do
-    result <- executeOnNodes taskDef dataDefs workerNodes
+    result <- executeOnNodes taskDef dataDefs resultDef workerNodes
     liftIO $ resultProcessor result
 
-executeOnNodes :: (Serializable a) => TaskDef -> [DataDef] -> [NodeId] -> Process [a]
-executeOnNodes taskDef dataDefs workerNodes = do
+executeOnNodes :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
+executeOnNodes taskDef dataDefs resultDef workerNodes = do
   if null workerNodes
     then say "no workers => no results (ports open?)" >> return [] 
-    else executeOnNodes' taskDef dataDefs workerNodes
+    else executeOnNodes' taskDef dataDefs resultDef workerNodes
 
 data DistributionStrategy = NextFreeNodeWithDataLocality
 
-executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> [NodeId] -> Process [a]
-executeOnNodes' taskDef dataDefs workerNodes = do
+executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
+executeOnNodes' taskDef dataDefs resultDef workerNodes = do
   masterProcess <- getSelfPid
-  distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs workerNodes 0 workerNodes (length dataDefs) []
+  distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs resultDef workerNodes 0 workerNodes (length dataDefs) []
 
 -- try to allocate work until no work can be delegated to the remaining free workers, then collect a single result, repeat
-distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> [NodeId] -> Int -> [NodeId] -> Int -> [[a]] -> Process [a]
+distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Int -> [NodeId] -> Int -> [[a]] -> Process [a]
 -- done waiting:
-distributeWork _ _ _ _ _ _ _ 0 collected = do
+distributeWork _ _ _ _ _ _ _ _ 0 collected = do
   say "all tasks accounted for"
   return $ concat $ reverse collected
 -- done distributing:
-distributeWork _ _ _ [] _ _ _ numWaiting collected = do
+distributeWork _ _ _ [] _ _ _ _ numWaiting collected = do
   say $ "expecting " ++ (show numWaiting) ++ " more responses"
   (_, nextResult) <- collectSingle
-  distributeWork undefined undefined undefined [] undefined undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
+  distributeWork undefined undefined undefined [] undefined undefined undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
 -- distribute as much as possible, collect single otherwise:
-distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes numBusyNodes freeNodes numWaiting collected = do
-  nodesWithData <- liftIO $ findNodesWithData (_config dataDef) (_filePath dataDef) freeNodes
+distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef workerNodes numBusyNodes freeNodes numWaiting collected = do
+  nodesWithData <- liftIO $ findNodesWithData (_hdfsInputLocation dataDef) freeNodes
   if null nodesWithData
     then do
     if numBusyNodes <= 0 then error "no worker accepts the task" else say $ "collecting since all workers are busy"
     (taskMetaData, nextResult) <- collectSingle
-    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) workerNodes (numBusyNodes-1) ((_workerNodeId taskMetaData):freeNodes) (numWaiting-1) (maybe collected (:collected) nextResult)
+    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef workerNodes (numBusyNodes-1) ((_workerNodeId taskMetaData):freeNodes) (numWaiting-1) (maybe collected (:collected) nextResult)
     else do
     spawnWorkerProcess (head nodesWithData)
     say $ "spawning on: " ++ (show $ head nodesWithData)
-    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest workerNodes (numBusyNodes+1) (delete (head nodesWithData) freeNodes) numWaiting collected
+    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest resultDef workerNodes (numBusyNodes+1) (delete (head nodesWithData) freeNodes) numWaiting collected
       where
         spawnWorkerProcess workerNode = do
-          _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef) workerNode) taskDef dataDef))
+          _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef) workerNode) taskDef dataDef resultDef))
           return ()
 
 collectSingle :: (Serializable a) => Process (TaskMetaData, Maybe a)
@@ -154,7 +155,7 @@ showWorkerNodes config = withWorkerNodes config (
 showWorkerNodesWithData :: NodeConfig -> NodeConfig -> String -> IO ()
 showWorkerNodesWithData workerConfig hdfsConfig hdfsFilePath = withWorkerNodes workerConfig (
   \workerNodes -> do
-    nodesWithData <- findNodesWithData hdfsConfig hdfsFilePath workerNodes
+    nodesWithData <- findNodesWithData (hdfsConfig, hdfsFilePath) workerNodes
     putStrLn $ "Found these nodes with data: " ++ show nodesWithData)
 
 withWorkerNodes :: NodeConfig -> ([NodeId] -> IO ()) -> IO ()
@@ -180,5 +181,5 @@ instance Describable TaskDef where
   describe (UnevaluatedThunk _ _) = "user function"
   describe (ObjectCodeModule _) = "object code module"
 instance Describable DataDef where
-  describe (HdfsData _ p) = p
+  describe (HdfsData (_, p)) = p
   describe (PseudoDB n) = show n

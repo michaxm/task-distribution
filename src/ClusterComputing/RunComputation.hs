@@ -1,4 +1,9 @@
-module ClusterComputing.RunComputation (MasterOptions(..), TaskSpec(..), DataSpec(..), runMaster) where
+module ClusterComputing.RunComputation (
+  MasterOptions(..),
+  TaskSpec(..),
+  DataSpec(..),
+  ResultSpec(..),
+  runMaster) where
 
 import System.Environment (getExecutablePath)
 import qualified System.HDFS.HDFSClient as HDFS --TODO ok to be referenced here? probably yes, but consider again later
@@ -11,7 +16,8 @@ data MasterOptions = MasterOptions {
   _host :: String,
   _port :: Int,
   _taskSpec :: TaskSpec,
-  _dataSpecs :: DataSpec
+  _dataSpecs :: DataSpec,
+  _resultSpec :: ResultSpec
   }
 
 {-
@@ -19,17 +25,22 @@ data MasterOptions = MasterOptions {
  - the function here is ignored, it only forces the compilation of the contained module
  - this could contain configurations for the object code file path etc. in the future
 -}
-data TaskSpec = SourceCodeSpec String
-              | FullBinaryDeployment (TaskInput -> TaskResult)
-              | ObjectCodeModuleDeployment (TaskInput -> TaskResult)
-data DataSpec = SimpleDataSpec Int
-              | HdfsDataSpec HdfsConfig String
+data TaskSpec
+ = SourceCodeSpec String
+ | FullBinaryDeployment (TaskInput -> TaskResult)
+ | ObjectCodeModuleDeployment (TaskInput -> TaskResult)
+data DataSpec
+  = SimpleDataSpec Int
+  | HdfsDataSpec HdfsConfig String
+data ResultSpec
+  = CollectOnMaster (TaskResult -> IO ())
 
-runMaster :: MasterOptions -> (TaskResult -> IO ()) -> IO ()
-runMaster (MasterOptions masterHost masterPort taskSpec dataSpec) resultProcessor = do
+runMaster :: MasterOptions -> IO ()
+runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = do
   taskDef <- buildTaskDef taskSpec
   dataDefs <- expandDataSpec dataSpec
-  executeDistributed (masterHost, masterPort) taskDef dataDefs resultProcessor
+  (resultDef, resultProcessor) <- return $ buildResultDef resultSpec
+  executeDistributed (masterHost, masterPort) taskDef dataDefs resultDef resultProcessor
     where
       buildTaskDef :: TaskSpec -> IO TaskDef
       buildTaskDef (SourceCodeSpec modulePath) = do
@@ -39,13 +50,14 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec) resultProcesso
         selfPath <- getExecutablePath
         fullDeploymentExecutionRemote selfPath function
       buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeExecutionRemote
+      buildResultDef (CollectOnMaster resultProcessor) = (ReturnAsMessage, resultProcessor)
 
 expandDataSpec :: DataSpec -> IO [DataDef]
 expandDataSpec (HdfsDataSpec config path) = do
   putStrLn $ "looking for files at " ++ path
   paths <- HDFS.hdfsListFiles config path
   putStrLn $ "found " ++ (show paths)
-  return $ map (HdfsData config) paths
+  return $ map (HdfsData . (\p -> (config, p))) paths
 expandDataSpec (SimpleDataSpec numDBs) = return $ mkSimpleDataSpecs numDBs
   where
     mkSimpleDataSpecs :: Int -> [DataDef]

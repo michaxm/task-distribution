@@ -16,8 +16,8 @@ import Util.Logging
 {-
  Filters the given nodes to those with any of the file blocks, ordered by the number of file blocks (not regarding individual file block length).
 -}
-findNodesWithData :: (String, Int) -> String -> [NodeId] -> IO [NodeId]
-findNodesWithData config hdfsFilePath nodes = do
+findNodesWithData :: ((String, Int), String) -> [NodeId] -> IO [NodeId]
+findNodesWithData (config, hdfsFilePath) nodes = do
   logInfo ("All nodes: " ++ (show nodes))
   hostsWithData <- hdfsFileDistribution config hdfsFilePath
   (if null hostsWithData then logError else logInfo) ("Hdfs hosts with data: " ++ (show hostsWithData))

@@ -43,7 +43,7 @@ applyTaskLogic (ObjectCodeModule objectCode) taskInput = OC.codeExecutionOnWorke
 
 -- FIXME port not open (file not found?) error silently dropped
 loadData :: DataDef -> IO TaskResult
-loadData (HdfsData config filePath) = DS._loadEntries (HDS.dataSource config) filePath -- TODO distinguish String/Read by overlapping instances or otherwise?
+loadData (HdfsData (config, filePath)) = DS._loadEntries (HDS.dataSource config) filePath -- TODO distinguish String/Read by overlapping instances or otherwise?
 loadData (PseudoDB numDB) = DS._loadEntries SDS.stringSource ("/home/axm/projects/thesis-distributed-calculation/cluster-computing/resources/pseudo-db/" ++ (show numDB)) -- TODO make simple usable for all (for basic example)
 
 -- Full binary deployment step 1/3: run within the client/master process to serialize itself.

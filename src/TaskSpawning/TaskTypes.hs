@@ -11,8 +11,15 @@ import GHC.Generics (Generic)
 type TaskInput = [String]
 type TaskResult = [String]
 
-data TaskDef =
-  SourceCodeModule {
+{-
+  The way how code is to be distributed. The approaches have different disadvantages:
+
+  - source code: very limited type checking, breaks integration of code in regular program
+  - function serialization: special entry point in Main necessary
+  - object code distribution: requires compilation intermediate result, cumbersome to add required libs/modules
+-}
+data TaskDef
+ = SourceCodeModule {
     _moduleName :: String,
     _moduleContent :: String
     }
@@ -26,14 +33,33 @@ data TaskDef =
 instance Binary TaskDef
 instance Serializable TaskDef
 
+{-
+ Where data comes from:
+
+ - hdfs data source
+ - very simple file format for testing purposes, files with numbers expected relative to work directory
+-}
 type HdfsConfig = (String, Int)
-data DataDef =
-  HdfsData {
-    _config :: HdfsConfig,
-    _filePath :: String
+type HdfsPath = String
+type HdfsLocation = (HdfsConfig, HdfsPath)
+data DataDef
+  = HdfsData {
+    _hdfsInputLocation :: HdfsLocation
     }
   | PseudoDB {
     _numDB :: Int
     } deriving (Typeable, Generic)
 instance Binary DataDef
 instance Serializable DataDef
+
+{-
+ Where calculation results go:
+
+ - simply respond the answer, aggregation happens on master application
+-}
+data ResultDef
+ = ReturnAsMessage
+ deriving (Typeable, Generic)
+instance Binary ResultDef
+instance Serializable ResultDef
+  
