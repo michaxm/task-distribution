@@ -34,20 +34,21 @@ codeExecutionOnWorker objectCode taskInput = do
 
 codeExecutionOnWorker' :: TaskInput -> FilePath -> BL.ByteString -> IO TaskResult
 codeExecutionOnWorker' taskInput builddir objectCode = do
-  logInfo "creating execution frame"
+  logInfo "worker: creating execution frame"
   _ <- executeExternal "ghc" ["-no-link", "-outputdir", builddir, "object-code-app/RemoteExecutable.hs", "object-code-app/RemoteExecutor.hs"]
-  logInfo "saving transported code"
+  logInfo "worker: saving transported code"
   objectCodeFilePath <- return $ builddir ++ "/RemoteExecutable.o"
   BL.writeFile objectCodeFilePath objectCode
   binaryPath <- return $ builddir++"/binary"
-  logInfo $ "linking: " ++ binaryPath
+  logInfo $ "worker: linking: " ++ binaryPath
   libs <- determineLibs
   _ <- executeExternal "ghc" (["-o", binaryPath, builddir++"/Main.o", objectCodeFilePath] ++ (fst libs))
-  logInfo $ "running " ++ binaryPath
-  logDebug $ "task input: " ++ (show taskInput)
+  logInfo $ "worker: running " ++ binaryPath
+  logDebug $ "worker: task input: " ++ (show taskInput)
   result <- withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) $ \taskInputFilePath ->
     withEnv "LD_LIBRARY_PATH" (concat $ intersperse ":" $ snd libs) $ do
       executeExternal binaryPath [taskInputFilePath]
+  logInfo $ "executing task finished"
   logDebug $ "got run output: " ++ (show result)
   parseResult result
 

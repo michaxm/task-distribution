@@ -20,6 +20,7 @@ import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
 import Data.List (delete)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
+import Data.Time.Clock (diffUTCTime, NominalDiffTime, getCurrentTime)
 
 import ClusterComputing.LogConfiguration
 import ClusterComputing.DataLocality (findNodesWithData)
@@ -111,20 +112,27 @@ data DistributionStrategy = NextFreeNodeWithDataLocality
 executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
 executeOnNodes' taskDef dataDefs resultDef workerNodes = do
   masterProcess <- getSelfPid
-  distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs resultDef workerNodes 0 workerNodes (length dataDefs) []
+  before <- liftIO getCurrentTime
+  taskResults <- distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs resultDef workerNodes 0 workerNodes (length dataDefs) []
+  after <- liftIO getCurrentTime
+  say $ "total time: " ++ show (diffUTCTime after before)
+  mapM_ say $ map show $ snd taskResults
+  return $ fst taskResults
+
+type TaskRunStat = (String, NominalDiffTime)
 
 -- try to allocate work until no work can be delegated to the remaining free workers, then collect a single result, repeat
-distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Int -> [NodeId] -> Int -> [[a]] -> Process [a]
+distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Int -> [NodeId] -> Int -> [([a], TaskRunStat)] -> Process ([a], [TaskRunStat])
 -- done waiting:
 distributeWork _ _ _ _ _ _ _ _ 0 collected = do
   say "all tasks accounted for"
-  return $ concat $ reverse collected
+  return $ let (res, stat) = unzip collected in (concat $ reverse res, stat)
 -- done distributing:
 distributeWork _ _ _ [] _ _ _ _ numWaiting collected = do
   say $ "expecting " ++ (show numWaiting) ++ " more responses"
   (_, nextResult) <- collectSingle
   distributeWork undefined undefined undefined [] undefined undefined undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
--- distribute as much as possible, collect single otherwise:
+-- distribute as much as possible, otherwise collect single result and retry :
 distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef workerNodes numBusyNodes freeNodes numWaiting collected = do
   nodesWithData <- liftIO $ findNodesWithData (_hdfsInputLocation dataDef) freeNodes
   if null nodesWithData
@@ -138,15 +146,20 @@ distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest)
     distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest resultDef workerNodes (numBusyNodes+1) (delete (head nodesWithData) freeNodes) numWaiting collected
       where
         spawnWorkerProcess workerNode = do
-          _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef) workerNode) taskDef dataDef resultDef))
+          now <- liftIO getCurrentTime
+          _workerProcessId <- spawn workerNode (workerTaskClosure (TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef workerNode) workerNode (serializeTime now)) taskDef dataDef resultDef))
           return ()
 
-collectSingle :: (Serializable a) => Process (TaskMetaData, Maybe a)
+collectSingle :: (Serializable a) => Process (TaskMetaData, Maybe (a, TaskRunStat))
 collectSingle = do
   (taskMetaData, nextResult) <- expect
-  case nextResult of
-   (Left  msg) -> say (msg ++ " failure not handled for "++(_taskName taskMetaData)++"...") >> return (taskMetaData, Nothing)
-   (Right taskResult) -> say ("got a result for: "++(_taskName taskMetaData)) >> return (taskMetaData, Just taskResult)
+  now <- liftIO getCurrentTime
+  let taskName = _taskName taskMetaData in
+   case nextResult of
+    (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (taskMetaData, Nothing)
+    (Right taskResult) -> say ("got a result for: "++taskName) >> return (taskMetaData, Just (taskResult, taskStat))
+      where
+        taskStat = (taskName, diffUTCTime now $ deserializeTime $ _taskStartTime taskMetaData)
 
 showWorkerNodes :: NodeConfig -> IO ()
 showWorkerNodes config = withWorkerNodes config (
@@ -171,8 +184,8 @@ shutdownWorkerNodes (host, port) = do
     forM_ workerNodes terminateSlave
     -- try terminateAllSlaves instead?
 
-taskDescription :: TaskDef -> DataDef -> String
-taskDescription t d = "Task: " ++ (describe t) ++ " " ++ (describe d)
+taskDescription :: TaskDef -> DataDef -> NodeId -> String
+taskDescription t d n = "task: " ++ (describe t) ++ " " ++ (describe d) ++ " on " ++ (show n)
 
 class Describable a where
   describe :: a -> String

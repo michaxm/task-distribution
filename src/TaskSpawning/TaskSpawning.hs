@@ -57,8 +57,8 @@ fullDeploymentExecutionRemote programPath function = do
 fullExecutionWithinWorkerProcess :: String -> FilePath -> IO ()
 fullExecutionWithinWorkerProcess taskFnArg taskInputFilePath = do
   taskFn <- withErrorAction logError ("Could not read task logic: " ++(show taskFnArg)) $ return $ (read taskFnArg :: BL.ByteString)
-  logInfo "deserializing task logic"
-  logDebug $ "got this task function: " ++ (show taskFn)
+  logInfo "worker: deserializing task logic"
+  logDebug $ "worker: got this task function: " ++ (show taskFn)
   function <- deserializeFunction taskFn :: IO (TaskInput -> TaskResult)
   serializeFunction function >>= \s -> logDebug $ "task deserialization done for: " ++ (show $ BL.unpack s)
   CP.binaryExecution function taskInputFilePath

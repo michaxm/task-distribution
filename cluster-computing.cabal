@@ -45,6 +45,7 @@ library
                      , hdfs-thrift-client, text
                      , split
                      , hslogger
+                     , time
   default-language:    Haskell2010
 
 executable cluster-computing
