@@ -40,7 +40,7 @@ import TaskSpawning.TaskTypes
 workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
 workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec resultSpec) = do
   say $ "processing: " ++ taskName
-  result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError :: Process (Either String TaskResult)
+  result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError
   say $ "processing done for: " ++ taskName
   handleResult resultSpec result
   where
@@ -51,7 +51,9 @@ workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec resultSpec
         format [] = []
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
+    handleResult :: ResultDef -> Either String TaskResult -> Process () -- signature here defines transported type, handle with care
     handleResult ReturnAsMessage result = send masterProcess (taskMetaData, result)
+    handleResult ReturnOnlyNumResults result = send masterProcess (taskMetaData, result >>= \rs -> Right [show $ length rs])
 
 -- template haskell vs. its result
 -- needs: {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}

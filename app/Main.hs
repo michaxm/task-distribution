@@ -34,7 +34,12 @@ userSyntaxError :: String -> undefined
 userSyntaxError reason = error $ usageInfo ++ reason ++ "\n"
 
 usageInfo :: String
-usageInfo = "Syntax: master <host> <port> <module:<module path>|fullbinarydemo:<demo function>:<demo arg>|objectcodedemo> <simpledata:numDBs|hdfs:<thrift server port>:<file path> <collectonmaster>\n"
+usageInfo = "Syntax: master"
+            ++ " <host>"
+            ++ " <port>"
+            ++ " <module:<module path>|fullbinarydemo:<demo function>:<demo arg>|objectcodedemo>"
+            ++ " <simpledata:numDBs|hdfs:<thrift server port>:<file path>"
+            ++ " <collectonmaster|discard>\n"
             ++ "| worker <worker host> <worker port>\n"
             ++ "| showworkers\n"
             ++ "| workerswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
@@ -61,11 +66,12 @@ parseMasterOpts args =
     parseDataSpec masterHost args =
       case splitOn ":" args of
        ["simpledata", numDBs] -> SimpleDataSpec $ read numDBs
-       ["hdfs", thriftPort, hdfsPath] -> HdfsDataSpec (masterHost, read thriftPort) hdfsPath
+       ["hdfs", thriftPort, hdfsPath] -> HdfsDataSpec ((masterHost, read thriftPort), hdfsPath)
        _ -> userSyntaxError $ "unknown data specification: " ++ args
     parseResultSpec args =
       case splitOn ":" args of
        ["collectonmaster"] -> CollectOnMaster resultProcessor
+       ["discard"] -> Discard
        _ -> userSyntaxError $ "unknown result specification: " ++ args
 
 resultProcessor :: TaskResult -> IO ()

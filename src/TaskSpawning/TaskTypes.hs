@@ -56,9 +56,11 @@ instance Serializable DataDef
  Where calculation results go:
 
  - simply respond the answer, aggregation happens on master application
+ - only num results: for testing/benchmarking purposes
 -}
 data ResultDef
  = ReturnAsMessage
+ | ReturnOnlyNumResults
  deriving (Typeable, Generic)
 instance Binary ResultDef
 instance Serializable ResultDef

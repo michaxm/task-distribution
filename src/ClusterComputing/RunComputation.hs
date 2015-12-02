@@ -31,9 +31,10 @@ data TaskSpec
  | ObjectCodeModuleDeployment (TaskInput -> TaskResult)
 data DataSpec
   = SimpleDataSpec Int
-  | HdfsDataSpec HdfsConfig String
+  | HdfsDataSpec HdfsLocation
 data ResultSpec
   = CollectOnMaster (TaskResult -> IO ())
+  | Discard
 
 runMaster :: MasterOptions -> IO ()
 runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = do
@@ -51,9 +52,10 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = d
         fullDeploymentExecutionRemote selfPath function
       buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeExecutionRemote
       buildResultDef (CollectOnMaster resultProcessor) = (ReturnAsMessage, resultProcessor)
+      buildResultDef Discard = (ReturnOnlyNumResults, \num -> putStrLn $ (show num) ++ " results discarded")
 
 expandDataSpec :: DataSpec -> IO [DataDef]
-expandDataSpec (HdfsDataSpec config path) = do
+expandDataSpec (HdfsDataSpec (config, path)) = do
   putStrLn $ "looking for files at " ++ path
   paths <- HDFS.hdfsListFiles config path
   putStrLn $ "found " ++ (show paths)
