@@ -1,6 +1,6 @@
 module Main where
 
-import Data.List (intersperse, isInfixOf)
+import Data.List (intersperse)
 import Data.List.Split (splitOn)
 import System.Environment (getArgs, getExecutablePath)
 import qualified System.Log.Logger as L
@@ -11,7 +11,9 @@ import ClusterComputing.TaskDistribution (startWorkerNode, showWorkerNodes, show
 import TaskSpawning.FullBinaryTaskSpawningInterface (executeFullBinaryArg, fullExecutionWithinWorkerProcess)
 import TaskSpawning.TaskTypes
 
+import FullBinaryExamples
 import RemoteExecutable
+import VisitCalculation
 
 main :: IO ()
 main = do
@@ -44,6 +46,8 @@ usageInfo = "Syntax: master"
             ++ "| showworkers\n"
             ++ "| workerswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
             ++ "| shutdown\n"
+            ++ "\n"
+            ++ "demo functions: append:<suffix> | filter:<infixfilter> | visitcalc:unused \n"
 
 parseMasterOpts :: [String] -> MasterOptions
 parseMasterOpts args =
@@ -60,8 +64,10 @@ parseMasterOpts args =
        _ -> userSyntaxError $ "unknown task specification: " ++ args
        where
         mkBinaryDemoArgs :: String -> String -> TaskSpec
-        mkBinaryDemoArgs "append" demoArg = FullBinaryDeployment (map (++ (" "++demoArg)))
-        mkBinaryDemoArgs "filter" demoArg = FullBinaryDeployment (filter (demoArg `isInfixOf`))
+        mkBinaryDemoArgs "append" demoArg = FullBinaryDeployment (appendDemo demoArg)
+        mkBinaryDemoArgs "filter" demoArg = FullBinaryDeployment (filterDemo demoArg)
+        mkBinaryDemoArgs "visitcalc" _ = FullBinaryDeployment calculateVisits
+        mkBinaryDemoArgs d a = userSyntaxError $ "unknown demo: " ++ d ++ ":" ++ a
     parseDataSpec :: String -> String -> DataSpec
     parseDataSpec masterHost args =
       case splitOn ":" args of
