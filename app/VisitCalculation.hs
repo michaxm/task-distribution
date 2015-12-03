@@ -1,5 +1,6 @@
 module VisitCalculation (calculateVisits) where
 
+import Data.Foldable (foldl')
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -12,12 +13,17 @@ type RequestTime = String
 type Event = String
 
 calculateVisits :: [String] -> [String]
-calculateVisits = map formatVisit . partitionByVisitorId . map parseEvent
+calculateVisits = map formatVisit . partitionByVisitorId . parseEvents
 
-parseEvent :: String -> ParsedEvent
-parseEvent e =
-  let first5 = take 5 (splitOn "|" e) in
-   (first5 !! 4, first5 !! 0, e)
+parseEvents :: [String] -> [ParsedEvent]
+parseEvents = foldl' (\p -> maybe p (:p) . parseEvent) []
+  where
+    parseEvent :: String -> Maybe ParsedEvent
+    parseEvent e =
+      let first5 = take 5 (splitOn "|" e) in
+       if length first5 < 5
+       then Nothing
+       else Just (first5 !! 4, first5 !! 0, e)
 
 partitionByVisitorId :: [ParsedEvent] -> [VisitData]
 partitionByVisitorId = Map.assocs . foldr insertEvent Map.empty
