@@ -60,6 +60,9 @@ instance Serializable DataDef
 -}
 data ResultDef
  = ReturnAsMessage
+ | HdfsResult {
+   _outputPrefix :: String
+   }
  | ReturnOnlyNumResults
  deriving (Typeable, Generic)
 instance Binary ResultDef

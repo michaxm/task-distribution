@@ -22,7 +22,7 @@ library
                      , ClusterComputing.LogConfiguration
                      , DataAccess.DataSource
                      , TaskSpawning.FullBinaryTaskSpawningInterface
-  other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality
+  other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality, ClusterComputing.HdfsWriter
                      , TaskSpawning.TaskSpawning
                      , TaskSpawning.SourceCodeExecution, TaskSpawning.DeployCompleteProgram, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
                      , TaskSpawning.ExecutionUtil
@@ -61,6 +61,7 @@ executable cluster-computing
                      , hslogger
                      , containers
                      , json
+                     , strings
   default-language:    Haskell2010
 
 executable cluster-computing-object-code-remote

@@ -34,6 +34,7 @@ data DataSpec
   | HdfsDataSpec HdfsLocation
 data ResultSpec
   = CollectOnMaster (TaskResult -> IO ())
+  | StoreInHdfs String
   | Discard
 
 runMaster :: MasterOptions -> IO ()
@@ -52,6 +53,7 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = d
         fullDeploymentExecutionRemote selfPath function
       buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeExecutionRemote
       buildResultDef (CollectOnMaster resultProcessor) = (ReturnAsMessage, resultProcessor)
+      buildResultDef (StoreInHdfs outputPrefix) = (HdfsResult outputPrefix, \_ -> putStrLn "result stored in hdfs")
       buildResultDef Discard = (ReturnOnlyNumResults, \num -> putStrLn $ (show num) ++ " results discarded")
 
 expandDataSpec :: DataSpec -> IO [DataDef]

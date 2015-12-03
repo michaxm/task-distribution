@@ -19,11 +19,13 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
 import Data.List (delete)
+import Data.List.Split (splitOn)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (diffUTCTime, NominalDiffTime, getCurrentTime)
 
-import ClusterComputing.LogConfiguration
 import ClusterComputing.DataLocality (findNodesWithData)
+import ClusterComputing.HdfsWriter (writeEntriesToFile)
+import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
 import TaskSpawning.TaskSpawning (processTask)
 import TaskSpawning.TaskTypes
@@ -42,7 +44,8 @@ workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec resultSpec
   say $ "processing: " ++ taskName
   result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError
   say $ "processing done for: " ++ taskName
-  handleResult resultSpec result
+  handledResult <- liftIO (handleResult dataSpec resultSpec result) `catch` buildError
+  send masterProcess ((taskMetaData, handledResult) :: (TaskMetaData, Either String TaskResult)) -- signature here defines transported type, handle with care
   where
     taskName = _taskName taskMetaData
     buildError :: SomeException -> Process (Either String TaskResult)
@@ -51,9 +54,15 @@ workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec resultSpec
         format [] = []
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
-    handleResult :: ResultDef -> Either String TaskResult -> Process () -- signature here defines transported type, handle with care
-    handleResult ReturnAsMessage result = send masterProcess (taskMetaData, result)
-    handleResult ReturnOnlyNumResults result = send masterProcess (taskMetaData, result >>= \rs -> Right [show $ length rs])
+    handleResult :: DataDef -> ResultDef -> Either String TaskResult -> IO (Either String TaskResult)
+    handleResult _ ReturnAsMessage result = return result
+    handleResult (HdfsData (config, path)) (HdfsResult outputPrefix) result = do
+      case result of
+       (Right res) -> writeEntriesToFile config (outputPrefix ++ "/" ++ fileNamePart) res >> return (Right [])
+       _ -> return result
+      where fileNamePart = let parts = splitOn "/" path in if null parts then "" else parts !! (length parts -1)
+    handleResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
+    handleResult _ ReturnOnlyNumResults result = return (result >>= \rs -> Right [show $ length rs])
 
 -- template haskell vs. its result
 -- needs: {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}

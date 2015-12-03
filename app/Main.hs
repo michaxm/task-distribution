@@ -2,6 +2,7 @@ module Main where
 
 import Data.List (intersperse)
 import Data.List.Split (splitOn)
+import Data.Strings (strReplace)
 import System.Environment (getArgs, getExecutablePath)
 import qualified System.Log.Logger as L
 
@@ -41,7 +42,7 @@ usageInfo = "Syntax: master"
             ++ " <port>"
             ++ " <module:<module path>|fullbinarydemo:<demo function>:<demo arg>|objectcodedemo>"
             ++ " <simpledata:numDBs|hdfs:<thrift server port>:<file path>"
-            ++ " <collectonmaster|discard>\n"
+            ++ " <collectonmaster|discard|storeinhdfs:<outputprefix>>\n"
             ++ "| worker <worker host> <worker port>\n"
             ++ "| showworkers\n"
             ++ "| workerswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
@@ -77,6 +78,7 @@ parseMasterOpts args =
     parseResultSpec args =
       case splitOn ":" args of
        ["collectonmaster"] -> CollectOnMaster resultProcessor
+       ["storeinhdfs", outputPrefix] -> StoreInHdfs outputPrefix
        ["discard"] -> Discard
        _ -> userSyntaxError $ "unknown result specification: " ++ args
 
