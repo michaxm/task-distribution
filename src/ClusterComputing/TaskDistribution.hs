@@ -241,7 +241,7 @@ handleWorkerTask (TaskTransport masterProcess taskMetaData taskDef dataDef resul
     do
       acceptTime <- liftIO getCurrentTime
       say $ "processing: " ++ taskName
-      result <- liftIO (processTask taskDef dataDef >>= return)
+      result <- liftIO (processTask taskDef dataDef)
       say $ "processing done for: " ++ taskName
       processingDoneTime <- liftIO getCurrentTime
       liftIO (handleWorkerResult dataDef resultDef result acceptTime processingDoneTime) >>= return . Right

@@ -38,7 +38,6 @@ processTask taskDef dataDef = do
 -- TODO real logging putStrLn "returning result"
   return (result, (loadingDataDuration, loadingTaskDuration, executionDuration))
 
-
 applyTaskLogic :: TaskDef -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
 applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput = do
   putStrLn "compiling task from source code"

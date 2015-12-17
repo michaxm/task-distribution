@@ -17,7 +17,6 @@ deployAndRunExternalBinary :: [String] -> BL.ByteString -> TaskInput -> IO (Task
 deployAndRunExternalBinary programBaseArgs program taskInput = do
   ((res, execDur), totalDur) <- measureDuration $ withTempBLFile "distributed-program" program $ runExternalBinary programBaseArgs taskInput
   return (res, (totalDur - execDur), execDur)
-      
 
 runExternalBinary :: [String] -> TaskInput -> FilePath -> IO (TaskResult, NominalDiffTime)
 runExternalBinary programBaseArgs taskInput filePath = do
