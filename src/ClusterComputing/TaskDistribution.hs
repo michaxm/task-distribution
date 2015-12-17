@@ -29,7 +29,7 @@ import ClusterComputing.HdfsWriter (writeEntriesToFile)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
 import qualified TaskSpawning.BinaryStorage as RemoteStore
-import TaskSpawning.ExecutionUtil (measureDuration)
+import TaskSpawning.ExecutionUtil (measureDuration, executeExternal)
 import TaskSpawning.TaskSpawning (processTask, RunStat)
 import TaskSpawning.TaskTypes
 
@@ -257,22 +257,31 @@ handleWorkerTask (TaskTransport masterProcess taskMetaData taskDef dataDef resul
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
 
-handleWorkerResult :: DataDef -> ResultDef -> (TaskResult, RunStat) -> UTCTime -> UTCTime -> IO (TaskResult, RemoteRunStat)
+handleWorkerResult :: DataDef -> ResultDef -> (Either FilePath TaskResult, RunStat) -> UTCTime -> UTCTime -> IO (TaskResult, RemoteRunStat)
 handleWorkerResult dataDef resultDef (taskResult, runStat) acceptTime processingDoneTime = do
-  res <- handleResult dataDef resultDef
+  res <- handleResult
   return (res, serializedRunStat runStat)
   where
-    handleResult :: DataDef -> ResultDef -> IO TaskResult
-    handleResult _ ReturnAsMessage = return taskResult
-    handleResult (HdfsData (config, path)) (HdfsResult outputPrefix) = do
-      storeDur <- measureDuration $ writeEntriesToFile config (outputPrefix ++ "/" ++ fileNamePart) taskResult
-      putStrLn $ "stored result data in: " ++ (show storeDur)
-      return []
-      where fileNamePart = let parts = splitOn "/" path in if null parts then "" else parts !! (length parts -1)
-    handleResult _ (HdfsResult _) = error "storage to hdfs with other data source than hdfs currently not supported"
-    handleResult _ ReturnOnlyNumResults = return (taskResult >>= \rs -> [show $ length rs])
     serializedRunStat (d, t, e) =
       RemoteRunStat (serializeTimeDiff $ diffUTCTime processingDoneTime acceptTime) (serializeTimeDiff d) (serializeTimeDiff t) (serializeTimeDiff e)
+    handleResult :: IO TaskResult
+    handleResult = case taskResult of
+      (Right plainResult) -> handlePlainResult dataDef resultDef plainResult
+      (Left resultFilePath) -> handleFileResult dataDef resultDef resultFilePath
+      where
+        handlePlainResult _ ReturnAsMessage plainResult = return plainResult
+        handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix) plainResult = writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (getFileNamePart path)) plainResult
+        handlePlainResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
+        handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
+        handleFileResult _ ReturnAsMessage _ = error "not implemented, returning saved contents of a file does not make much sense"
+        handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
+        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix) resultFilePath = writeToHdfs $ executeExternal "hdfs" ["dfs", "-copyFromLocal", resultFilePath, outputPrefix ++ "/" ++ (getFileNamePart path)]
+        handleFileResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
+        getFileNamePart path = let parts = splitOn "/" path in if null parts then "" else parts !! (length parts -1)
+        writeToHdfs writeAction = do
+          (_, storeDur) <- measureDuration $ writeAction
+          putStrLn $ "stored result data in: " ++ (show storeDur)
+          return []
 
 -- preparation negotiaion
 

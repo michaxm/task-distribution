@@ -29,7 +29,7 @@ executeSerializedThunkArg = "executeserializedthunk"
 
 type RunStat = (NominalDiffTime, NominalDiffTime, NominalDiffTime)
 
-processTask :: TaskDef -> DataDef -> IO (TaskResult, RunStat)
+processTask :: TaskDef -> DataDef -> IO (Either FilePath TaskResult, RunStat)
 processTask taskDef dataDef = do
 -- TODO real logging  putStrLn "loading data"
   (taskInput, loadingDataDuration) <- measureDuration $ loadData dataDef
@@ -38,23 +38,26 @@ processTask taskDef dataDef = do
 -- TODO real logging putStrLn "returning result"
   return (result, (loadingDataDuration, loadingTaskDuration, executionDuration))
 
-applyTaskLogic :: TaskDef -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
+applyTaskLogic :: TaskDef -> TaskInput -> IO (Either FilePath TaskResult, NominalDiffTime, NominalDiffTime)
 applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput = do
   putStrLn "compiling task from source code"
   (taskFn, loadTaskDuration) <- measureDuration $ loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
   putStrLn "applying data"
   (result, execDuration) <- measureDuration $ return $ taskFn taskInput
-  return (result, loadTaskDuration, execDuration)
+  return (result, loadTaskDuration, execDuration) >>= return . (onFirst Right)
 -- Full binary deployment step 2/3: run within worker process to deploy the distributed task binary
-applyTaskLogic (DeployFullBinary program) taskInput = DFB.deployAndRunFullBinary executeFullBinaryArg program taskInput
+applyTaskLogic (DeployFullBinary program) taskInput = DFB.deployAndRunFullBinary executeFullBinaryArg program taskInput >>= return . (onFirst Left)
 applyTaskLogic (PreparedDeployFullBinary hash) taskInput = do
   ((Just filePath), taskLoadDur) <- measureDuration $ RemoteStore.get hash --TODO catch unknown binary error nicer
   (res, execDur) <- DFB.runExternalBinary [executeFullBinaryArg] taskInput filePath
-  return (res, taskLoadDur, execDur)
+  return (res, taskLoadDur, execDur) >>= return . (onFirst Left)
 -- Serialized thunk deployment step 2/3: run within worker process to deploy the distributed task binary
-applyTaskLogic (UnevaluatedThunk function program) taskInput = DST.deployAndRunSerializedThunk executeSerializedThunkArg function program taskInput
+applyTaskLogic (UnevaluatedThunk function program) taskInput = DST.deployAndRunSerializedThunk executeSerializedThunkArg function program taskInput >>= return . (onFirst Left)
 -- Partial binary deployment step 2/2: receive distribution on worker, prepare input data, link object file and spawn worker process, read its output
-applyTaskLogic (ObjectCodeModule objectCode) taskInput = DOC.codeExecutionOnWorker objectCode taskInput
+applyTaskLogic (ObjectCodeModule objectCode) taskInput = DOC.codeExecutionOnWorker objectCode taskInput >>= return . (onFirst Right)
+
+onFirst :: (a -> a') -> (a, b, c) -> (a', b, c)
+onFirst f (a, b, c) = (f a, b, c)
 
 -- FIXME port not open (file not found?) error silently dropped
 loadData :: DataDef -> IO TaskResult
@@ -73,18 +76,18 @@ serializedThunkSerializationOnMaster programPath function = do
   return $ UnevaluatedThunk taskFn program
 
 -- Full binary deployment step 3/3: run within the spawned process for the distributed executable, applies data to distributed task.
-executionWithinWorkerProcessForFullBinaryDeployment :: (TaskInput -> TaskResult) -> FilePath -> IO ()
+executionWithinWorkerProcessForFullBinaryDeployment :: (TaskInput -> TaskResult) -> FilePath -> FilePath -> IO ()
 executionWithinWorkerProcessForFullBinaryDeployment = DFB.fullBinaryExecution
 
 -- Serialized thunk deployment step 3/3: run within the spawned process for the distributed executable, applies data to distributed task.
-executionWithinWorkerProcessForThunkSerialization :: String -> FilePath -> IO ()
-executionWithinWorkerProcessForThunkSerialization taskFnArg taskInputFilePath = do
+executionWithinWorkerProcessForThunkSerialization :: String -> FilePath -> FilePath -> IO ()
+executionWithinWorkerProcessForThunkSerialization taskFnArg taskInputFilePath taskOutputFilePath = do
   taskFn <- withErrorAction logError ("Could not read task logic: " ++(show taskFnArg)) $ return $ (read taskFnArg :: BL.ByteString)
   logInfo "worker: deserializing task logic"
   logDebug $ "worker: got this task function: " ++ (show taskFn)
   function <- deserializeFunction taskFn :: IO (TaskInput -> TaskResult)
   serializeFunction function >>= \s -> logDebug $ "task deserialization done for: " ++ (show $ BL.unpack s)
-  DST.serializedThunkExecution function taskInputFilePath
+  DST.serializedThunkExecution function taskInputFilePath taskOutputFilePath
 
 -- Partial binary deployment step 1/2: start distribution of task on master
 objectCodeSerializationOnMaster :: IO TaskDef

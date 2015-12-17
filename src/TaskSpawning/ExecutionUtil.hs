@@ -64,6 +64,7 @@ serializeTaskInput = BLC.pack . show
 deserializeTaskInput :: BLC.ByteString -> IO TaskInput
 deserializeTaskInput s = withErrorAction logError "Could not read input data" $ return $ read $ BLC.unpack s
 
+-- TODO move out of here
 parseResult :: String -> IO TaskResult
 parseResult s = withErrorPrefix ("Cannot parse result: "++s) $ return $! (read s :: TaskResult)
 
