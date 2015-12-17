@@ -27,6 +27,7 @@ import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.HdfsWriter (writeEntriesToFile)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
+import TaskSpawning.ExecutionUtil (measureDuration)
 import TaskSpawning.TaskSpawning (processTask, RunStat)
 import TaskSpawning.TaskTypes
 
@@ -71,7 +72,9 @@ handleWorkerResult dataDef resultDef (taskResult, runStat) acceptTime processing
     handleResult :: DataDef -> ResultDef -> IO TaskResult
     handleResult _ ReturnAsMessage = return taskResult
     handleResult (HdfsData (config, path)) (HdfsResult outputPrefix) = do
-      writeEntriesToFile config (outputPrefix ++ "/" ++ fileNamePart) taskResult >> return []
+      storeDur <- measureDuration $ writeEntriesToFile config (outputPrefix ++ "/" ++ fileNamePart) taskResult
+      putStrLn $ "stored result data in: " ++ (show storeDur)
+      return []
       where fileNamePart = let parts = splitOn "/" path in if null parts then "" else parts !! (length parts -1)
     handleResult _ (HdfsResult _) = error "storage to hdfs with other data source than hdfs currently not supported"
     handleResult _ ReturnOnlyNumResults = return (taskResult >>= \rs -> [show $ length rs])
