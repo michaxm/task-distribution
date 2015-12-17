@@ -67,4 +67,3 @@ data ResultDef
  deriving (Typeable, Generic)
 instance Binary ResultDef
 instance Serializable ResultDef
-  

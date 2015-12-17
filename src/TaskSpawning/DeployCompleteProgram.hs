@@ -3,6 +3,7 @@ module TaskSpawning.DeployCompleteProgram (executeFullBinary, deployAndRunFullBi
 -- FIXME really lazy? rather use strict???
 import qualified Data.ByteString.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
+import Data.Time.Clock (NominalDiffTime)
 import System.FilePath ()
 import System.Process (readProcessWithExitCode)
 
@@ -15,20 +16,24 @@ import TaskSpawning.TaskTypes -- TODO ugly to be referenced explicitely here - g
 
  The execution does not include error handling, this should be done on master/client.
 -}
-deployAndRunFullBinary :: BL.ByteString -> BL.ByteString -> String -> TaskInput -> IO TaskResult
-deployAndRunFullBinary program taskFunction mainArg taskInput =
-  withTempBLFile "distributed-program" program (
-    \filePath -> do
-      readProcessWithExitCode "chmod" ["+x", filePath] "" >>= expectSilentSuccess
-      putStrLn $ "running " ++ filePath ++ "... "
-      executionOutput <- withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) (
-        \taskInputFilePath -> do
-            -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
-            readProcessWithExitCode filePath [mainArg, show taskFunction, taskInputFilePath] "")
-      putStrLn $ "... run completed" -- TODO trace logging ++ (show executionOutput)
-      result <- expectSuccess executionOutput
-      parseResult result
-    )
+deployAndRunFullBinary :: BL.ByteString -> BL.ByteString -> String -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
+deployAndRunFullBinary program taskFunction mainArg taskInput = do
+  ((res, execDur), totalDur) <- measureDuration doRun
+  return (res, (totalDur - execDur), execDur)
+  where
+    doRun =
+      withTempBLFile "distributed-program" program (
+        \filePath -> do
+          readProcessWithExitCode "chmod" ["+x", filePath] "" >>= expectSilentSuccess
+          putStrLn $ "running " ++ filePath ++ "... "
+          (executionOutput, execDur) <- measureDuration $ withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) (
+            \taskInputFilePath -> do
+              -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
+              readProcessWithExitCode filePath [mainArg, show taskFunction, taskInputFilePath] "")
+          putStrLn $ "... run completed" -- TODO trace logging ++ (show executionOutput)
+          result <- expectSuccess executionOutput
+          resParsed <- parseResult result
+          return (resParsed, execDur))
 
 {-
  Accepts the distributed, serialized closure as part of the spawned program and executes it.

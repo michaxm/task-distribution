@@ -5,6 +5,7 @@ import Control.Exception.Base (bracket)
 import qualified Data.ByteString.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
+import Data.Time.Clock (diffUTCTime, NominalDiffTime, getCurrentTime)
 import System.Directory (removeFile)
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode(..))
@@ -71,3 +72,10 @@ executeExternal executable args = do
   logInfo $ "executing: " ++ executable ++ " " ++ (concat $ intersperse " " args)
   result <- withErrorAction logError ("Could not run [" ++ (show executable) ++ "] successfully: ") (readProcessWithExitCode executable args "")
   expectSuccess result
+
+measureDuration :: IO a -> IO (a, NominalDiffTime)
+measureDuration action = do
+  before <- getCurrentTime
+  res <- action -- TODO eager enough?
+  after <- getCurrentTime
+  return (res, diffUTCTime after before)

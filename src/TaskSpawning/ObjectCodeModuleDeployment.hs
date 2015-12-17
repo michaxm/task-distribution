@@ -7,6 +7,7 @@ module TaskSpawning.ObjectCodeModuleDeployment (
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
 import Data.List.Split (splitOn)
+import Data.Time.Clock (NominalDiffTime)
 import System.Directory (getHomeDirectory)
 import System.IO.Temp (withSystemTempDirectory)
 
@@ -27,12 +28,13 @@ getConfig key = do
       parseConfig :: [String] -> (String, String)
       parseConfig es = if length es < 2 then ("", "") else (head es, concat $ tail es)
 
-codeExecutionOnWorker :: BL.ByteString -> TaskInput -> IO TaskResult
+codeExecutionOnWorker :: BL.ByteString -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
 codeExecutionOnWorker objectCode taskInput = do
-  withSystemTempDirectory "object-code-build-dir" $ \builddir -> do
+  ((res, execDur), totalDur) <- measureDuration $ withSystemTempDirectory "object-code-build-dir" $ \builddir -> do
     codeExecutionOnWorker' taskInput builddir objectCode
+  return (res, totalDur - execDur, execDur)
 
-codeExecutionOnWorker' :: TaskInput -> FilePath -> BL.ByteString -> IO TaskResult
+codeExecutionOnWorker' :: TaskInput -> FilePath -> BL.ByteString -> IO (TaskResult, NominalDiffTime)
 codeExecutionOnWorker' taskInput builddir objectCode = do
   logInfo "worker: creating execution frame"
   _ <- executeExternal "ghc" ["-no-link", "-outputdir", builddir, "object-code-app/RemoteExecutable.hs", "object-code-app/RemoteExecutor.hs"]
@@ -45,12 +47,13 @@ codeExecutionOnWorker' taskInput builddir objectCode = do
   _ <- executeExternal "ghc" (["-o", binaryPath, builddir++"/Main.o", objectCodeFilePath] ++ (fst libs))
   logInfo $ "worker: running " ++ binaryPath
   logDebug $ "worker: task input: " ++ (show taskInput)
-  result <- withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) $ \taskInputFilePath ->
+  (result, execDur) <- measureDuration $ withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) $ \taskInputFilePath ->
     withEnv "LD_LIBRARY_PATH" (concat $ intersperse ":" $ snd libs) $ do
       executeExternal binaryPath [taskInputFilePath]
   logInfo $ "executing task finished"
   logDebug $ "got run output: " ++ (show result)
-  parseResult result
+  parsedResult <- parseResult result
+  return (parsedResult, execDur)
 
 determineLibs :: IO ([String], [String])
 determineLibs = do

@@ -21,13 +21,13 @@ import qualified Data.Binary as B (encode)
 import Data.List (delete)
 import Data.List.Split (splitOn)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
-import Data.Time.Clock (diffUTCTime, NominalDiffTime, getCurrentTime)
+import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
 import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.HdfsWriter (writeEntriesToFile)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
-import TaskSpawning.TaskSpawning (processTask)
+import TaskSpawning.TaskSpawning (processTask, RunStat)
 import TaskSpawning.TaskTypes
 
 {-
@@ -40,29 +40,43 @@ import TaskSpawning.TaskTypes
  This is the final building block of the worker task execution, calling TaskSpawning.processTask.
 -}
 workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
-workerTask (TaskTransport masterProcess taskMetaData taskDef dataSpec resultSpec) = do
-  say $ "processing: " ++ taskName
-  result <- liftIO (processTask taskDef dataSpec >>= return . Right) `catch` buildError
-  say $ "processing done for: " ++ taskName
-  handledResult <- liftIO (handleResult dataSpec resultSpec result) `catch` buildError
-  send masterProcess ((taskMetaData, handledResult) :: (TaskMetaData, Either String TaskResult)) -- signature here defines transported type, handle with care
+workerTask (TaskTransport masterProcess taskMetaData taskDef dataDef resultDef) = do
+  handledResult <- (
+    do
+      acceptTime <- liftIO getCurrentTime
+      say $ "processing: " ++ taskName
+      result <- liftIO (processTask taskDef dataDef >>= return)
+      say $ "processing done for: " ++ taskName
+      processingDoneTime <- liftIO getCurrentTime
+      liftIO (handleWorkerResult dataDef resultDef result acceptTime processingDoneTime) >>= return . Right
+    ) `catch` buildError
+  say $ "replying"
+  send masterProcess ((taskMetaData, handledResult) :: TransportedResult)
   where
     taskName = _taskName taskMetaData
-    buildError :: SomeException -> Process (Either String TaskResult)
+    buildError :: SomeException -> Process (Either String a)
     buildError e = return $ Left $ "Task execution (for: "++taskName++") failed: " ++ (format $ show e)
       where
         format [] = []
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
-    handleResult :: DataDef -> ResultDef -> Either String TaskResult -> IO (Either String TaskResult)
-    handleResult _ ReturnAsMessage result = return result
-    handleResult (HdfsData (config, path)) (HdfsResult outputPrefix) result = do
-      case result of
-       (Right res) -> writeEntriesToFile config (outputPrefix ++ "/" ++ fileNamePart) res >> return (Right [])
-       _ -> return result
+
+type TransportedResult = (TaskMetaData, Either String (TaskResult, RemoteRunStat)) -- signature here defines transported type, handle with care
+
+handleWorkerResult :: DataDef -> ResultDef -> (TaskResult, RunStat) -> UTCTime -> UTCTime -> IO (TaskResult, RemoteRunStat)
+handleWorkerResult dataDef resultDef (taskResult, runStat) acceptTime processingDoneTime = do
+  res <- handleResult dataDef resultDef
+  return (res, serializedRunStat runStat)
+  where
+    handleResult :: DataDef -> ResultDef -> IO TaskResult
+    handleResult _ ReturnAsMessage = return taskResult
+    handleResult (HdfsData (config, path)) (HdfsResult outputPrefix) = do
+      writeEntriesToFile config (outputPrefix ++ "/" ++ fileNamePart) taskResult >> return []
       where fileNamePart = let parts = splitOn "/" path in if null parts then "" else parts !! (length parts -1)
-    handleResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
-    handleResult _ ReturnOnlyNumResults result = return (result >>= \rs -> Right [show $ length rs])
+    handleResult _ (HdfsResult _) = error "storage to hdfs with other data source than hdfs currently not supported"
+    handleResult _ ReturnOnlyNumResults = return (taskResult >>= \rs -> [show $ length rs])
+    serializedRunStat (d, t, e) =
+      RemoteRunStat (serializeTimeDiff $ diffUTCTime processingDoneTime acceptTime) (serializeTimeDiff d) (serializeTimeDiff t) (serializeTimeDiff e)
 
 -- template haskell vs. its result
 -- needs: {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}
@@ -127,10 +141,24 @@ executeOnNodes' taskDef dataDefs resultDef workerNodes = do
   taskResults <- distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs resultDef workerNodes 0 workerNodes (length dataDefs) []
   after <- liftIO getCurrentTime
   say $ "total time: " ++ show (diffUTCTime after before)
-  mapM_ say $ map show $ snd taskResults
+  mapM_ say $ map showRunStat $ snd taskResults
+  say $ showRunStat $ foldr aggregateStats emptyStat $ snd taskResults
   return $ fst taskResults
+    where
+      emptyStat = ("all tasks", deserializeTimeDiff emptyDuration, RemoteRunStat emptyDuration emptyDuration emptyDuration emptyDuration)
+      emptyDuration = fromIntegral (0 :: Integer)
+      aggregateStats (_, t, RemoteRunStat a b c d) (n, t', RemoteRunStat a' b' c' d') = (n, t+t', RemoteRunStat (a+a') (b+b') (c+c') (d+d'))
 
-type TaskRunStat = (String, NominalDiffTime)
+type TaskRunStat = (String, NominalDiffTime, RemoteRunStat)
+
+showRunStat :: TaskRunStat -> String
+showRunStat (n, totalTaskTime, remoteStat) =
+  n ++ ": total: " ++ (show totalTaskTime) ++ ", remote total: " ++ (show remoteTotal) ++ ", data load: " ++ (show dataLoadDur) ++ ", task load: " ++ (show taskLoadDur) ++ ", task exec: " ++ (show execTaskDur)
+  where
+    remoteTotal = deserializeTimeDiff $ _remoteTotalDuration remoteStat
+    dataLoadDur = deserializeTimeDiff $ _remoteDataLoadDuration remoteStat
+    taskLoadDur = deserializeTimeDiff $ _remoteTaskLoadDuration remoteStat
+    execTaskDur = deserializeTimeDiff $ _remoteExecTaskDuration remoteStat
 
 -- try to allocate work until no work can be delegated to the remaining free workers, then collect a single result, repeat
 distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Int -> [NodeId] -> Int -> [([a], TaskRunStat)] -> Process ([a], [TaskRunStat])
@@ -163,14 +191,16 @@ distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest)
 
 collectSingle :: (Serializable a) => Process (TaskMetaData, Maybe (a, TaskRunStat))
 collectSingle = do
-  (taskMetaData, nextResult) <- expect
+  (taskMetaData, nextResult) <- expect -- :: Hint: Process TransportedResult
   now <- liftIO getCurrentTime
-  let taskName = _taskName taskMetaData in
-   case nextResult of
-    (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (taskMetaData, Nothing)
-    (Right taskResult) -> say ("got a result for: "++taskName) >> return (taskMetaData, Just (taskResult, taskStat))
-      where
-        taskStat = (taskName, diffUTCTime now $ deserializeTime $ _taskStartTime taskMetaData)
+  let
+    taskName = _taskName taskMetaData
+    in case nextResult of
+        (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (taskMetaData, Nothing)
+        (Right (taskResult, remoteRunStat)) -> say ("got a result for: "++taskName) >> return (taskMetaData, Just (taskResult, taskStats))
+          where
+            taskStats :: TaskRunStat
+            taskStats = (taskName, diffUTCTime now (deserializeTime $ _taskDistributionStartTime taskMetaData), remoteRunStat)
 
 showWorkerNodes :: NodeConfig -> IO ()
 showWorkerNodes config = withWorkerNodes config (
