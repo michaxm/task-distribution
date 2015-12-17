@@ -1,4 +1,4 @@
-module TaskSpawning.DeployFullBinary (deployAndRunFullBinary, deployAndRunExternalBinary, fullBinaryExecution) where
+module TaskSpawning.DeployFullBinary (deployAndRunFullBinary, deployAndRunExternalBinary, fullBinaryExecution, runExternalBinary) where
 
 import qualified Data.ByteString.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
@@ -15,22 +15,22 @@ deployAndRunFullBinary mainArg = deployAndRunExternalBinary [mainArg]
 
 deployAndRunExternalBinary :: [String] -> BL.ByteString -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
 deployAndRunExternalBinary programBaseArgs program taskInput = do
-  ((res, execDur), totalDur) <- measureDuration doRun
+  ((res, execDur), totalDur) <- measureDuration $ withTempBLFile "distributed-program" program $ runExternalBinary programBaseArgs taskInput
   return (res, (totalDur - execDur), execDur)
-  where
-    doRun =
-      withTempBLFile "distributed-program" program (
-        \filePath -> do
-          readProcessWithExitCode "chmod" ["+x", filePath] "" >>= expectSilentSuccess
-          putStrLn $ "running " ++ filePath ++ "... "
-          (executionOutput, execDur) <- measureDuration $ withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) (
-            \taskInputFilePath -> do
-              -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
-              readProcessWithExitCode filePath (programBaseArgs ++ [taskInputFilePath]) "")
-          putStrLn $ "... run completed" -- TODO trace logging ++ (show executionOutput)
-          result <- expectSuccess executionOutput
-          resParsed <- parseResult result
-          return (resParsed, execDur))
+      
+
+runExternalBinary :: [String] -> TaskInput -> FilePath -> IO (TaskResult, NominalDiffTime)
+runExternalBinary programBaseArgs taskInput filePath = do
+  readProcessWithExitCode "chmod" ["+x", filePath] "" >>= expectSilentSuccess
+  putStrLn $ "running " ++ filePath ++ "... "
+  (executionOutput, execDur) <- measureDuration $ withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) (
+    \taskInputFilePath -> do
+      -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
+      readProcessWithExitCode filePath (programBaseArgs ++ [taskInputFilePath]) "")
+  putStrLn $ "... run completed" -- TODO trace logging ++ (show executionOutput)
+  result <- expectSuccess executionOutput
+  resParsed <- parseResult result
+  return (resParsed, execDur)
 
 fullBinaryExecution :: (TaskInput -> TaskResult) -> FilePath -> IO ()
 fullBinaryExecution function taskInputFilePath = do

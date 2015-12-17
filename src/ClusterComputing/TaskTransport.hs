@@ -4,6 +4,7 @@ module ClusterComputing.TaskTransport where
 import Control.Distributed.Process (ProcessId, NodeId)
 import Control.Distributed.Process.Serializable (Serializable)
 import Data.Binary (Binary)
+import Data.ByteString.Lazy (ByteString)
 import Data.Time.Calendar (Day(..))
 import Data.Time.Clock (UTCTime(..), NominalDiffTime)
 import Data.Typeable (Typeable)
@@ -53,3 +54,14 @@ serializeTimeDiff = toRational
 
 deserializeTimeDiff :: Rational -> NominalDiffTime
 deserializeTimeDiff = fromRational
+
+
+type QueryWorkerPreparationRequest = (ProcessId, Int)
+data QueryWorkerPreparationResponse = Prepared | Unprepared deriving (Typeable, Generic)
+instance Binary QueryWorkerPreparationResponse
+instance Serializable QueryWorkerPreparationResponse
+
+type PrepareWorkerRequest = (ProcessId, Int, ByteString)
+data PrepareWorkerResponse = PreparationFinished deriving (Typeable, Generic)
+instance Binary PrepareWorkerResponse
+instance Serializable PrepareWorkerResponse

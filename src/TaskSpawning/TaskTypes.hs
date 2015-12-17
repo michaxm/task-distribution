@@ -26,6 +26,9 @@ data TaskDef
  | DeployFullBinary {
    _deployable :: ByteString
    }
+ | PreparedDeployFullBinary {
+   _preparedFullBinaryHash :: Int
+   }
  | UnevaluatedThunk {
    _unevaluatedThunk :: ByteString,
    _deployable :: ByteString

@@ -49,7 +49,6 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = d
       buildResultDef (StoreInHdfs outputPrefix) = (HdfsResult outputPrefix, \_ -> putStrLn "result stored in hdfs")
       buildResultDef Discard = (ReturnOnlyNumResults, \num -> putStrLn $ (show num) ++ " results discarded")
 
-
 buildTaskDef :: TaskSpec -> IO TaskDef
 buildTaskDef (SourceCodeSpec modulePath) = do
   moduleContent <- readFile modulePath

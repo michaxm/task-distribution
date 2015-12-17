@@ -25,7 +25,7 @@ library
   other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality, ClusterComputing.HdfsWriter
                      , TaskSpawning.TaskSpawning
                      , TaskSpawning.SourceCodeExecution, TaskSpawning.DeployFullBinary, TaskSpawning.DeploySerializedThunk, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
-                     , TaskSpawning.ExecutionUtil
+                     , TaskSpawning.ExecutionUtil, TaskSpawning.BinaryStorage
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
                      , Util.ErrorHandling, Util.Logging
   ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
@@ -46,6 +46,7 @@ library
                      , split
                      , hslogger
                      , time
+                     , hashable
   default-language:    Haskell2010
 
 executable cluster-computing

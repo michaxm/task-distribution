@@ -12,6 +12,7 @@ import qualified DataAccess.DataSource as DS
 import qualified DataAccess.SimpleDataSource as SDS
 import qualified DataAccess.HdfsDataSource as HDS
 
+import qualified TaskSpawning.BinaryStorage as RemoteStore
 import qualified TaskSpawning.DeployFullBinary as DFB
 import qualified TaskSpawning.DeploySerializedThunk as DST
 import qualified TaskSpawning.ObjectCodeModuleDeployment as DOC
@@ -47,6 +48,10 @@ applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput = do
   return (result, loadTaskDuration, execDuration)
 -- Full binary deployment step 2/3: run within worker process to deploy the distributed task binary
 applyTaskLogic (DeployFullBinary program) taskInput = DFB.deployAndRunFullBinary executeFullBinaryArg program taskInput
+applyTaskLogic (PreparedDeployFullBinary hash) taskInput = do
+  ((Just filePath), taskLoadDur) <- measureDuration $ RemoteStore.get hash --TODO catch unknown binary error nicer
+  (res, execDur) <- DFB.runExternalBinary [executeFullBinaryArg] taskInput filePath
+  return (res, taskLoadDur, execDur)
 -- Serialized thunk deployment step 2/3: run within worker process to deploy the distributed task binary
 applyTaskLogic (UnevaluatedThunk function program) taskInput = DST.deployAndRunSerializedThunk executeSerializedThunkArg function program taskInput
 -- Partial binary deployment step 2/2: receive distribution on worker, prepare input data, link object file and spawn worker process, read its output
