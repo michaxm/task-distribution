@@ -26,7 +26,7 @@ main = do
    ["showworkers"] -> showWorkerNodes localConfig
    ["workerswithhdfsdata", host, port, hdfsFilePath] -> showWorkerNodesWithData localConfig (host, read port) hdfsFilePath
    ["shutdown"] -> shutdownWorkerNodes localConfig
-   -- this is an expected entry point for every client program using full binary serialization (as demonstrated in "fullbinarydemo")
+   -- this is an expected entry point for every client program using full binary serialization (as demonstrated in "serializethunkdemo")
    [executeFullBinaryArg, taskFn, taskInputFilePath] -> fullExecutionWithinWorkerProcess taskFn taskInputFilePath
    _ -> userSyntaxError "unknown mode"
 
@@ -40,7 +40,7 @@ usageInfo :: String
 usageInfo = "Syntax: master"
             ++ " <host>"
             ++ " <port>"
-            ++ " <module:<module path>|fullbinarydemo:<demo function>:<demo arg>|objectcodedemo>"
+            ++ " <module:<module path>|serializethunkdemo:<demo function>:<demo arg>|objectcodedemo>"
             ++ " <simpledata:numDBs|hdfs:<thrift server port>:<file path>"
             ++ " <collectonmaster|discard|storeinhdfs:<outputprefix>>\n"
             ++ "| worker <worker host> <worker port>\n"
@@ -48,7 +48,7 @@ usageInfo = "Syntax: master"
             ++ "| workerswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
             ++ "| shutdown\n"
             ++ "\n"
-            ++ "demo functions: append:<suffix> | filter:<infixfilter> | visitcalc:unused \n"
+            ++ "demo functions (with demo arg description): append:<suffix> | filter:<infixfilter> | visitcalc:unused \n"
 
 parseMasterOpts :: [String] -> MasterOptions
 parseMasterOpts args =
@@ -60,15 +60,15 @@ parseMasterOpts args =
     parseTaskSpec args =
       case splitOn ":" args of
        ["module", modulePath] -> SourceCodeSpec modulePath
-       ["fullbinarydemo", demoFunction, demoArg] -> mkBinaryDemoArgs demoFunction demoArg
+       ["serializethunkdemo", demoFunction, demoArg] -> mkSerializeThunkDemoArgs demoFunction demoArg
        ["objectcodedemo"] -> ObjectCodeModuleDeployment remoteExecutable
        _ -> userSyntaxError $ "unknown task specification: " ++ args
        where
-        mkBinaryDemoArgs :: String -> String -> TaskSpec
-        mkBinaryDemoArgs "append" demoArg = FullBinaryDeployment (appendDemo demoArg)
-        mkBinaryDemoArgs "filter" demoArg = FullBinaryDeployment (filterDemo demoArg)
-        mkBinaryDemoArgs "visitcalc" _ = FullBinaryDeployment calculateVisits
-        mkBinaryDemoArgs d a = userSyntaxError $ "unknown demo: " ++ d ++ ":" ++ a
+        mkSerializeThunkDemoArgs :: String -> String -> TaskSpec
+        mkSerializeThunkDemoArgs "append" demoArg = SerializedThunk (appendDemo demoArg)
+        mkSerializeThunkDemoArgs "filter" demoArg = SerializedThunk (filterDemo demoArg)
+        mkSerializeThunkDemoArgs "visitcalc" _ = SerializedThunk calculateVisits
+        mkSerializeThunkDemoArgs d a = userSyntaxError $ "unknown demo: " ++ d ++ ":" ++ a
     parseDataSpec :: String -> String -> DataSpec
     parseDataSpec masterHost args =
       case splitOn ":" args of

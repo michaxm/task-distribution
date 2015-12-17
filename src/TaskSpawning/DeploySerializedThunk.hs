@@ -1,4 +1,4 @@
-module TaskSpawning.DeployCompleteProgram (executeFullBinary, deployAndRunFullBinary, binaryExecution) where
+module TaskSpawning.DeploySerializedThunk (deployAndRunSerializedThunk, serializedThunkExecution, acceptAndExecuteSerializedThunk) where
 
 -- FIXME really lazy? rather use strict???
 import qualified Data.ByteString.Char8 as BLC
@@ -16,8 +16,8 @@ import TaskSpawning.TaskTypes -- TODO ugly to be referenced explicitely here - g
 
  The execution does not include error handling, this should be done on master/client.
 -}
-deployAndRunFullBinary :: BL.ByteString -> BL.ByteString -> String -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
-deployAndRunFullBinary program taskFunction mainArg taskInput = do
+deployAndRunSerializedThunk :: BL.ByteString -> BL.ByteString -> String -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
+deployAndRunSerializedThunk program taskFunction mainArg taskInput = do
   ((res, execDur), totalDur) <- measureDuration doRun
   return (res, (totalDur - execDur), execDur)
   where
@@ -41,11 +41,11 @@ deployAndRunFullBinary program taskFunction mainArg taskInput = do
  Parameter handling is done via simple serialization.
 -}
 --TODO refactor module borders to have fully unterstandable resonsibilities, shis should go up to have nothing to do with serialization of thunks?
-executeFullBinary :: BL.ByteString -> IO (TaskInput -> TaskResult)
-executeFullBinary taskFn = (deserializeFunction taskFn :: IO (TaskInput -> TaskResult)) >>= (\f -> return (take 10 . f))
+acceptAndExecuteSerializedThunk :: BL.ByteString -> IO (TaskInput -> TaskResult)
+acceptAndExecuteSerializedThunk taskFn = (deserializeFunction taskFn :: IO (TaskInput -> TaskResult)) >>= (\f -> return (take 10 . f))
 
-binaryExecution :: (TaskInput -> TaskResult) -> FilePath -> IO ()
-binaryExecution function taskInputFilePath = do
+serializedThunkExecution :: (TaskInput -> TaskResult) -> FilePath -> IO ()
+serializedThunkExecution function taskInputFilePath = do
   --TODO real logging
 --  putStrLn $ "reading data from: " ++ taskInputFilePath
   fileContents <- BLC.readFile taskInputFilePath

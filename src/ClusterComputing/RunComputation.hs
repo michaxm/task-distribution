@@ -10,7 +10,7 @@ import qualified System.HDFS.HDFSClient as HDFS --TODO ok to be referenced here?
 
 import ClusterComputing.TaskDistribution
 import TaskSpawning.TaskTypes
-import TaskSpawning.TaskSpawning (fullDeploymentExecutionRemote, objectCodeExecutionRemote)
+import TaskSpawning.TaskSpawning (serializedThunkExecutionRemote, objectCodeExecutionRemote)
 
 data MasterOptions = MasterOptions {
   _host :: String,
@@ -27,7 +27,7 @@ data MasterOptions = MasterOptions {
 -}
 data TaskSpec
  = SourceCodeSpec String
- | FullBinaryDeployment (TaskInput -> TaskResult)
+ | SerializedThunk (TaskInput -> TaskResult)
  | ObjectCodeModuleDeployment (TaskInput -> TaskResult)
 data DataSpec
   = SimpleDataSpec Int
@@ -48,9 +48,9 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = d
       buildTaskDef (SourceCodeSpec modulePath) = do
         moduleContent <- readFile modulePath
         return $ mkSourceCodeModule modulePath moduleContent
-      buildTaskDef (FullBinaryDeployment function) = do
+      buildTaskDef (SerializedThunk function) = do
         selfPath <- getExecutablePath
-        fullDeploymentExecutionRemote selfPath function
+        serializedThunkExecutionRemote selfPath function
       buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeExecutionRemote
       buildResultDef (CollectOnMaster resultProcessor) = (ReturnAsMessage, resultProcessor)
       buildResultDef (StoreInHdfs outputPrefix) = (HdfsResult outputPrefix, \_ -> putStrLn "result stored in hdfs")

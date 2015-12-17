@@ -24,7 +24,7 @@ library
                      , TaskSpawning.FullBinaryTaskSpawningInterface
   other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality, ClusterComputing.HdfsWriter
                      , TaskSpawning.TaskSpawning
-                     , TaskSpawning.SourceCodeExecution, TaskSpawning.DeployCompleteProgram, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
+                     , TaskSpawning.SourceCodeExecution, TaskSpawning.DeploySerializedThunk, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
                      , TaskSpawning.ExecutionUtil
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
                      , Util.ErrorHandling, Util.Logging
