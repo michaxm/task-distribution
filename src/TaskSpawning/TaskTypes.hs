@@ -20,16 +20,19 @@ type TaskResult = [String]
 -}
 data TaskDef
  = SourceCodeModule {
-    _moduleName :: String,
-    _moduleContent :: String
-    }
-  | UnevaluatedThunk {
-    _unevaluatedThunk :: ByteString,
-    _deployable :: ByteString
-    }
-  | ObjectCodeModule {
-    _objectCode :: ByteString
-  } deriving (Typeable, Generic)
+   _moduleName :: String,
+   _moduleContent :: String
+   }
+ | DeployFullBinary {
+   _deployable :: ByteString
+   }
+ | UnevaluatedThunk {
+   _unevaluatedThunk :: ByteString,
+   _deployable :: ByteString
+   }
+ | ObjectCodeModule {
+   _objectCode :: ByteString
+   } deriving (Typeable, Generic)
 instance Binary TaskDef
 instance Serializable TaskDef
 

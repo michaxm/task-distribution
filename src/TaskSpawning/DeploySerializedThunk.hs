@@ -1,13 +1,11 @@
 module TaskSpawning.DeploySerializedThunk (deployAndRunSerializedThunk, serializedThunkExecution, acceptAndExecuteSerializedThunk) where
 
 -- FIXME really lazy? rather use strict???
-import qualified Data.ByteString.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
 import Data.Time.Clock (NominalDiffTime)
 import System.FilePath ()
-import System.Process (readProcessWithExitCode)
 
-import TaskSpawning.ExecutionUtil
+import TaskSpawning.DeployFullBinary (deployAndRunExternalBinary, fullBinaryExecution)
 import TaskSpawning.FunctionSerialization (deserializeFunction)
 import TaskSpawning.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
 
@@ -16,24 +14,10 @@ import TaskSpawning.TaskTypes -- TODO ugly to be referenced explicitely here - g
 
  The execution does not include error handling, this should be done on master/client.
 -}
-deployAndRunSerializedThunk :: BL.ByteString -> BL.ByteString -> String -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
-deployAndRunSerializedThunk program taskFunction mainArg taskInput = do
-  ((res, execDur), totalDur) <- measureDuration doRun
-  return (res, (totalDur - execDur), execDur)
-  where
-    doRun =
-      withTempBLFile "distributed-program" program (
-        \filePath -> do
-          readProcessWithExitCode "chmod" ["+x", filePath] "" >>= expectSilentSuccess
-          putStrLn $ "running " ++ filePath ++ "... "
-          (executionOutput, execDur) <- measureDuration $ withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) (
-            \taskInputFilePath -> do
-              -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
-              readProcessWithExitCode filePath [mainArg, show taskFunction, taskInputFilePath] "")
-          putStrLn $ "... run completed" -- TODO trace logging ++ (show executionOutput)
-          result <- expectSuccess executionOutput
-          resParsed <- parseResult result
-          return (resParsed, execDur))
+deployAndRunSerializedThunk :: String -> BL.ByteString -> BL.ByteString -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
+deployAndRunSerializedThunk mainArg taskFunction =
+  -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
+  deployAndRunExternalBinary [mainArg, show taskFunction]
 
 {-
  Accepts the distributed, serialized closure as part of the spawned program and executes it.
@@ -45,14 +29,4 @@ acceptAndExecuteSerializedThunk :: BL.ByteString -> IO (TaskInput -> TaskResult)
 acceptAndExecuteSerializedThunk taskFn = (deserializeFunction taskFn :: IO (TaskInput -> TaskResult)) >>= (\f -> return (take 10 . f))
 
 serializedThunkExecution :: (TaskInput -> TaskResult) -> FilePath -> IO ()
-serializedThunkExecution function taskInputFilePath = do
-  --TODO real logging
---  putStrLn $ "reading data from: " ++ taskInputFilePath
-  fileContents <- BLC.readFile taskInputFilePath
---  print fileContents
-  taskInput <- deserializeTaskInput fileContents
---  print taskInput
---  putStrLn "calculating result"
-  result <- return $ function taskInput
---  putStrLn "printing result"
-  print result
+serializedThunkExecution = fullBinaryExecution -- nothing different at this point

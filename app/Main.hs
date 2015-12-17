@@ -7,9 +7,9 @@ import System.Environment (getArgs, getExecutablePath)
 import qualified System.Log.Logger as L
 
 import ClusterComputing.LogConfiguration (initDefaultLogging)
+import ClusterComputing.RemoteExecutionSupport
 import ClusterComputing.RunComputation
 import ClusterComputing.TaskDistribution (startWorkerNode, showWorkerNodes, showWorkerNodesWithData, shutdownWorkerNodes)
-import TaskSpawning.FullBinaryTaskSpawningInterface (executeFullBinaryArg, fullExecutionWithinWorkerProcess)
 import TaskSpawning.TaskTypes
 
 import FullBinaryExamples
@@ -17,7 +17,7 @@ import RemoteExecutable
 import VisitCalculation
 
 main :: IO ()
-main = do
+main = withRemoteExecutionSupport calculateVisits $ do
   initDefaultLogging ""
   args <- getArgs
   case args of
@@ -26,8 +26,6 @@ main = do
    ["showworkers"] -> showWorkerNodes localConfig
    ["workerswithhdfsdata", host, port, hdfsFilePath] -> showWorkerNodesWithData localConfig (host, read port) hdfsFilePath
    ["shutdown"] -> shutdownWorkerNodes localConfig
-   -- this is an expected entry point for every client program using full binary serialization (as demonstrated in "serializethunkdemo")
-   [executeFullBinaryArg, taskFn, taskInputFilePath] -> fullExecutionWithinWorkerProcess taskFn taskInputFilePath
    _ -> userSyntaxError "unknown mode"
 
 localConfig :: HdfsConfig
@@ -40,7 +38,7 @@ usageInfo :: String
 usageInfo = "Syntax: master"
             ++ " <host>"
             ++ " <port>"
-            ++ " <module:<module path>|serializethunkdemo:<demo function>:<demo arg>|objectcodedemo>"
+            ++ " <module:<module path>|fullbinary|serializethunkdemo:<demo function>:<demo arg>|objectcodedemo>"
             ++ " <simpledata:numDBs|hdfs:<thrift server port>:<file path>"
             ++ " <collectonmaster|discard|storeinhdfs:<outputprefix>>\n"
             ++ "| worker <worker host> <worker port>\n"
@@ -60,6 +58,7 @@ parseMasterOpts args =
     parseTaskSpec args =
       case splitOn ":" args of
        ["module", modulePath] -> SourceCodeSpec modulePath
+       ["fullbinary"] -> FullBinaryDeployment
        ["serializethunkdemo", demoFunction, demoArg] -> mkSerializeThunkDemoArgs demoFunction demoArg
        ["objectcodedemo"] -> ObjectCodeModuleDeployment remoteExecutable
        _ -> userSyntaxError $ "unknown task specification: " ++ args

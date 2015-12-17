@@ -10,7 +10,7 @@ import qualified System.HDFS.HDFSClient as HDFS --TODO ok to be referenced here?
 
 import ClusterComputing.TaskDistribution
 import TaskSpawning.TaskTypes
-import TaskSpawning.TaskSpawning (serializedThunkExecutionRemote, objectCodeExecutionRemote)
+import TaskSpawning.TaskSpawning (fullBinarySerializationOnMaster, serializedThunkSerializationOnMaster, objectCodeSerializationOnMaster)
 
 data MasterOptions = MasterOptions {
   _host :: String,
@@ -27,6 +27,7 @@ data MasterOptions = MasterOptions {
 -}
 data TaskSpec
  = SourceCodeSpec String
+ | FullBinaryDeployment
  | SerializedThunk (TaskInput -> TaskResult)
  | ObjectCodeModuleDeployment (TaskInput -> TaskResult)
 data DataSpec
@@ -44,17 +45,21 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = d
   (resultDef, resultProcessor) <- return $ buildResultDef resultSpec
   executeDistributed (masterHost, masterPort) taskDef dataDefs resultDef resultProcessor
     where
-      buildTaskDef :: TaskSpec -> IO TaskDef
-      buildTaskDef (SourceCodeSpec modulePath) = do
-        moduleContent <- readFile modulePath
-        return $ mkSourceCodeModule modulePath moduleContent
-      buildTaskDef (SerializedThunk function) = do
-        selfPath <- getExecutablePath
-        serializedThunkExecutionRemote selfPath function
-      buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeExecutionRemote
       buildResultDef (CollectOnMaster resultProcessor) = (ReturnAsMessage, resultProcessor)
       buildResultDef (StoreInHdfs outputPrefix) = (HdfsResult outputPrefix, \_ -> putStrLn "result stored in hdfs")
       buildResultDef Discard = (ReturnOnlyNumResults, \num -> putStrLn $ (show num) ++ " results discarded")
+
+
+buildTaskDef :: TaskSpec -> IO TaskDef
+buildTaskDef (SourceCodeSpec modulePath) = do
+  moduleContent <- readFile modulePath
+  return $ mkSourceCodeModule modulePath moduleContent
+buildTaskDef FullBinaryDeployment =
+  getExecutablePath >>= fullBinarySerializationOnMaster
+buildTaskDef (SerializedThunk function) = do
+  selfPath <- getExecutablePath
+  serializedThunkSerializationOnMaster selfPath function
+buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeSerializationOnMaster
 
 expandDataSpec :: DataSpec -> IO [DataDef]
 expandDataSpec (HdfsDataSpec (config, path)) = do

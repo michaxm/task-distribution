@@ -232,7 +232,8 @@ class Describable a where
   describe :: a -> String
 instance Describable TaskDef where
   describe (SourceCodeModule n _) = n
-  describe (UnevaluatedThunk _ _) = "user function"
+  describe (DeployFullBinary _) = "user function defined in main"
+  describe (UnevaluatedThunk _ _) = "unevaluated user function"
   describe (ObjectCodeModule _) = "object code module"
 instance Describable DataDef where
   describe (HdfsData (_, p)) = p
