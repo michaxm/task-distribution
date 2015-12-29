@@ -26,7 +26,7 @@ type TimeStamp = (Integer, Rational)
 
 data TaskMetaData = TaskMetaData {
   _taskName :: String,
-  _workerNodeId :: NodeId,
+  _slaveNodeId :: NodeId,
   _taskDistributionStartTime :: TimeStamp
   } deriving (Typeable, Generic)
 instance Binary TaskMetaData
@@ -56,12 +56,12 @@ deserializeTimeDiff :: Rational -> NominalDiffTime
 deserializeTimeDiff = fromRational
 
 
-type QueryWorkerPreparationRequest = (ProcessId, Int)
-data QueryWorkerPreparationResponse = Prepared | Unprepared deriving (Typeable, Generic)
-instance Binary QueryWorkerPreparationResponse
-instance Serializable QueryWorkerPreparationResponse
+type QuerySlavePreparationRequest = (ProcessId, Int)
+data QuerySlavePreparationResponse = Prepared | Unprepared deriving (Typeable, Generic)
+instance Binary QuerySlavePreparationResponse
+instance Serializable QuerySlavePreparationResponse
 
-type PrepareWorkerRequest = (ProcessId, Int, ByteString)
-data PrepareWorkerResponse = PreparationFinished deriving (Typeable, Generic)
-instance Binary PrepareWorkerResponse
-instance Serializable PrepareWorkerResponse
+type PrepareSlaveRequest = (ProcessId, Int, ByteString)
+data PrepareSlaveResponse = PreparationFinished deriving (Typeable, Generic)
+instance Binary PrepareSlaveResponse
+instance Serializable PrepareSlaveResponse

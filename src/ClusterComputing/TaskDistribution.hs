@@ -1,9 +1,9 @@
 module ClusterComputing.TaskDistribution (
-  startWorkerNode,
+  startSlaveNode,
   executeDistributed,
-  showWorkerNodes,
-  showWorkerNodesWithData,
-  shutdownWorkerNodes) where
+  showSlaveNodes,
+  showSlaveNodesWithData,
+  shutdownSlaveNodes) where
 
 import Control.Distributed.Process (Process, ProcessId, NodeId,
                                     say, getSelfPid, spawn, send, expect, catch,
@@ -40,76 +40,76 @@ import TaskSpawning.TaskTypes
 
 -- BEGIN bindings for node communication
 {-
- This is the final building block of the worker task execution, calling TaskSpawning.processTask.
+ This is the final building block of the slave task execution, calling TaskSpawning.processTask.
 -}
 type TransportedResult = (TaskMetaData, Either String (TaskResult, RemoteRunStat)) -- signature here defines transported type, handle with care
-workerTask :: TaskTransport -> Process () -- TODO: have a node local config?
-workerTask = handleWorkerTask
+slaveTask :: TaskTransport -> Process () -- TODO: have a node local config?
+slaveTask = handleSlaveTask
 
-queryWorkerPreparation :: QueryWorkerPreparationRequest -> Process ()
-queryWorkerPreparation (masterProcess, hash) = handleQueryWorkerPreparation hash >>= send masterProcess
+querySlavePreparation :: QuerySlavePreparationRequest -> Process ()
+querySlavePreparation (masterProcess, hash) = handleQuerySlavePreparation hash >>= send masterProcess
 
-prepareWorker :: PrepareWorkerRequest -> Process ()
-prepareWorker (masterProcess, hash, content) = handlePrepareWorker hash content >>= send masterProcess
+prepareSlave :: PrepareSlaveRequest -> Process ()
+prepareSlave (masterProcess, hash, content) = handlePrepareSlave hash content >>= send masterProcess
 
 -- template haskell vs. its result
 -- needs: {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, DeriveGeneric #-}
---remotable ['workerTask] 
+--remotable ['slaveTask] 
 -- ======>
-workerTask__static :: S.Static (TaskTransport -> Process ())
-workerTask__static = S.staticLabel "ClusterComputing.TaskDistribution.workerTask"
-workerTask__sdict :: S.Static (PS.SerializableDict TaskTransport)
-workerTask__sdict = S.staticLabel "ClusterComputing.TaskDistribution.workerTask__sdict"
+slaveTask__static :: S.Static (TaskTransport -> Process ())
+slaveTask__static = S.staticLabel "ClusterComputing.TaskDistribution.slaveTask"
+slaveTask__sdict :: S.Static (PS.SerializableDict TaskTransport)
+slaveTask__sdict = S.staticLabel "ClusterComputing.TaskDistribution.slaveTask__sdict"
 -- not used for now, removed due to warnings as errors
---workerTask__tdict :: S.Static (PS.SerializableDict ())
---workerTask__tdict = S.staticLabel "ClusterComputing.TaskDistribution.workerTask__tdict"
-queryWorkerPreparation__static :: S.Static (QueryWorkerPreparationRequest -> Process())
-queryWorkerPreparation__static = S.staticLabel "ClusterComputing.TaskDistribution.queryWorkerPreparation"
-queryWorkerPreparation__sdict :: S.Static (PS.SerializableDict QueryWorkerPreparationRequest)
-queryWorkerPreparation__sdict = S.staticLabel "ClusterComputing.TaskDistribution.queryWorkerPreparation__sdict"
-prepareWorker__static :: S.Static (PrepareWorkerRequest -> Process())
-prepareWorker__static = S.staticLabel "ClusterComputing.TaskDistribution.prepareWorker"
-prepareWorker__sdict :: S.Static (PS.SerializableDict PrepareWorkerRequest)
-prepareWorker__sdict = S.staticLabel "ClusterComputing.TaskDistribution.prepareWorker__sdict"
+--slaveTask__tdict :: S.Static (PS.SerializableDict ())
+--slaveTask__tdict = S.staticLabel "ClusterComputing.TaskDistribution.slaveTask__tdict"
+querySlavePreparation__static :: S.Static (QuerySlavePreparationRequest -> Process())
+querySlavePreparation__static = S.staticLabel "ClusterComputing.TaskDistribution.querySlavePreparation"
+querySlavePreparation__sdict :: S.Static (PS.SerializableDict QuerySlavePreparationRequest)
+querySlavePreparation__sdict = S.staticLabel "ClusterComputing.TaskDistribution.querySlavePreparation__sdict"
+prepareSlave__static :: S.Static (PrepareSlaveRequest -> Process())
+prepareSlave__static = S.staticLabel "ClusterComputing.TaskDistribution.prepareSlave"
+prepareSlave__sdict :: S.Static (PS.SerializableDict PrepareSlaveRequest)
+prepareSlave__sdict = S.staticLabel "ClusterComputing.TaskDistribution.prepareSlave__sdict"
 __remoteTable :: S.RemoteTable -> S.RemoteTable
 __remoteTable =
-  (S.registerStatic "ClusterComputing.TaskDistribution.workerTask" (R1.toDynamic workerTask))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.workerTask__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict TaskTransport)))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.workerTask__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.queryWorkerPreparation" (R1.toDynamic queryWorkerPreparation))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.queryWorkerPreparation__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict QueryWorkerPreparationRequest)))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.queryWorkerPreparation__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareWorker" (R1.toDynamic prepareWorker))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareWorker__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict PrepareWorkerRequest)))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareWorker__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
+  (S.registerStatic "ClusterComputing.TaskDistribution.slaveTask" (R1.toDynamic slaveTask))
+  . (S.registerStatic "ClusterComputing.TaskDistribution.slaveTask__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict TaskTransport)))
+  . (S.registerStatic "ClusterComputing.TaskDistribution.slaveTask__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
+  . (S.registerStatic "ClusterComputing.TaskDistribution.querySlavePreparation" (R1.toDynamic querySlavePreparation))
+  . (S.registerStatic "ClusterComputing.TaskDistribution.querySlavePreparation__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict QuerySlavePreparationRequest)))
+  . (S.registerStatic "ClusterComputing.TaskDistribution.querySlavePreparation__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
+  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareSlave" (R1.toDynamic prepareSlave))
+  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareSlave__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict PrepareSlaveRequest)))
+  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareSlave__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
 
-workerTaskClosure :: TaskTransport -> S.Closure (Process ())
-workerTaskClosure =
-  -- $(mkClosure 'workerTask)
+slaveTaskClosure :: TaskTransport -> S.Closure (Process ())
+slaveTaskClosure =
+  -- $(mkClosure 'slaveTask)
 -- ======>
    ((S.closure
-    (workerTask__static
+    (slaveTask__static
      `S.staticCompose`
      (staticDecode
-      workerTask__sdict)))
+      slaveTask__sdict)))
    . B.encode)
 
-queryWorkerPreparationClosure :: QueryWorkerPreparationRequest -> S.Closure (Process ())
-queryWorkerPreparationClosure =
+querySlavePreparationClosure :: QuerySlavePreparationRequest -> S.Closure (Process ())
+querySlavePreparationClosure =
    ((S.closure
-    (queryWorkerPreparation__static
+    (querySlavePreparation__static
      `S.staticCompose`
      (staticDecode
-      queryWorkerPreparation__sdict)))
+      querySlavePreparation__sdict)))
    . B.encode)
    
-prepareWorkerClosure :: PrepareWorkerRequest -> S.Closure (Process ())
-prepareWorkerClosure =
+prepareSlaveClosure :: PrepareSlaveRequest -> S.Closure (Process ())
+prepareSlaveClosure =
    ((S.closure
-    (prepareWorker__static
+    (prepareSlave__static
      `S.staticCompose`
      (staticDecode
-      prepareWorker__sdict)))
+      prepareSlave__sdict)))
    . B.encode)
 
 rtable :: RemoteTable
@@ -118,33 +118,33 @@ rtable = __remoteTable $ initRemoteTable
 
 type NodeConfig = (String, Int)
 
-startWorkerNode :: NodeConfig -> IO ()
-startWorkerNode (host, port) = do
+startSlaveNode :: NodeConfig -> IO ()
+startSlaveNode (host, port) = do
   initDefaultLogging (show port)
   backend <- initializeBackend host (show port) rtable
-  putStrLn "initializing worker"
+  putStrLn "initializing slave"
   startSlave backend
 
 executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataDef] -> ResultDef -> ([a] -> IO ())-> IO ()
 executeDistributed (host, port) taskDef dataDefs resultDef resultProcessor = do
   backend <- initializeBackend host (show port) rtable
-  startMaster backend $ \workerNodes -> do
-    result <- executeOnNodes taskDef dataDefs resultDef workerNodes
+  startMaster backend $ \slaveNodes -> do
+    result <- executeOnNodes taskDef dataDefs resultDef slaveNodes
     liftIO $ resultProcessor result
 
 executeOnNodes :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
-executeOnNodes taskDef dataDefs resultDef workerNodes = do
-  if null workerNodes
-    then say "no workers => no results (ports open?)" >> return [] 
-    else executeOnNodes' taskDef dataDefs resultDef workerNodes
+executeOnNodes taskDef dataDefs resultDef slaveNodes = do
+  if null slaveNodes
+    then say "no slaves => no results (ports open?)" >> return [] 
+    else executeOnNodes' taskDef dataDefs resultDef slaveNodes
 
 data DistributionStrategy = NextFreeNodeWithDataLocality
 
 executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
-executeOnNodes' taskDef dataDefs resultDef workerNodes = do
+executeOnNodes' taskDef dataDefs resultDef slaveNodes = do
   masterProcess <- getSelfPid
   before <- liftIO getCurrentTime
-  taskResults <- distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs resultDef workerNodes 0 workerNodes (length dataDefs) []
+  taskResults <- distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs resultDef slaveNodes 0 slaveNodes (length dataDefs) []
   after <- liftIO getCurrentTime
   say $ "total time: " ++ show (diffUTCTime after before)
   mapM_ say $ map showRunStat $ snd taskResults
@@ -166,7 +166,7 @@ showRunStat (n, totalTaskTime, remoteStat) =
     taskLoadDur = deserializeTimeDiff $ _remoteTaskLoadDuration remoteStat
     execTaskDur = deserializeTimeDiff $ _remoteExecTaskDuration remoteStat
 
--- try to allocate work until no work can be delegated to the remaining free workers, then collect a single result, repeat
+-- try to allocate work until no work can be delegated to the remaining free slaves, then collect a single result, repeat
 distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Int -> [NodeId] -> Int -> [([a], TaskRunStat)] -> Process ([a], [TaskRunStat])
 -- done waiting:
 distributeWork _ _ _ _ _ _ _ _ 0 collected = do
@@ -178,20 +178,20 @@ distributeWork _ _ _ [] _ _ _ _ numWaiting collected = do
   (_, nextResult) <- collectSingle
   distributeWork undefined undefined undefined [] undefined undefined undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
 -- distribute as much as possible, otherwise collect single result and retry :
-distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef workerNodes numBusyNodes freeNodes numWaiting collected = do
+distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef slaveNodes numBusyNodes freeNodes numWaiting collected = do
   nodesWithData <- liftIO $ findNodesWithData (_hdfsInputLocation dataDef) freeNodes
   if null nodesWithData
     then do
-    if numBusyNodes <= 0 then error "no worker accepts the task" else say $ "collecting since all workers are busy"
+    if numBusyNodes <= 0 then error "no slave accepts the task" else say $ "collecting since all slaves are busy"
     (taskMetaData, nextResult) <- collectSingle
-    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef workerNodes (numBusyNodes-1) ((_workerNodeId taskMetaData):freeNodes) (numWaiting-1) (maybe collected (:collected) nextResult)
+    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef slaveNodes (numBusyNodes-1) ((_slaveNodeId taskMetaData):freeNodes) (numWaiting-1) (maybe collected (:collected) nextResult)
     else do
-    selectedWorker <- return (head nodesWithData)
-    spawnWorkerProcess' selectedWorker
-    say $ "spawning on: " ++ (show $ selectedWorker)
-    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest resultDef workerNodes (numBusyNodes+1) (delete (head nodesWithData) freeNodes) numWaiting collected
+    selectedSlave <- return (head nodesWithData)
+    spawnSlaveProcess' selectedSlave
+    say $ "spawning on: " ++ (show $ selectedSlave)
+    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest resultDef slaveNodes (numBusyNodes+1) (delete (head nodesWithData) freeNodes) numWaiting collected
       where
-        spawnWorkerProcess' = spawnWorkerProcess masterProcess taskDef dataDef resultDef
+        spawnSlaveProcess' = spawnSlaveProcess masterProcess taskDef dataDef resultDef
 
 collectSingle :: (Serializable a) => Process (TaskMetaData, Maybe (a, TaskRunStat))
 collectSingle = do
@@ -206,37 +206,37 @@ collectSingle = do
             taskStats :: TaskRunStat
             taskStats = (taskName, diffUTCTime now (deserializeTime $ _taskDistributionStartTime taskMetaData), remoteRunStat)
 
-spawnWorkerProcess :: ProcessId -> TaskDef -> DataDef -> ResultDef -> NodeId -> Process ()
-spawnWorkerProcess masterProcess taskDef dataDef resultDef workerNode = do
+spawnSlaveProcess :: ProcessId -> TaskDef -> DataDef -> ResultDef -> NodeId -> Process ()
+spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
   now <- liftIO getCurrentTime
-  preparedTaskDef <- prepareWorkerForTask taskDef
-  taskTransport <- return $ TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef workerNode) workerNode (serializeTime now)) preparedTaskDef dataDef resultDef
-  _unusedWorkerProcessId <- spawn workerNode (workerTaskClosure taskTransport)
+  preparedTaskDef <- prepareSlaveForTask taskDef
+  taskTransport <- return $ TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef slaveNode) slaveNode (serializeTime now)) preparedTaskDef dataDef resultDef
+  _unusedSlaveProcessId <- spawn slaveNode (slaveTaskClosure taskTransport)
   return ()
   where
-    prepareWorkerForTask :: TaskDef -> Process TaskDef
-    prepareWorkerForTask (DeployFullBinary program) = do
+    prepareSlaveForTask :: TaskDef -> Process TaskDef
+    prepareSlaveForTask (DeployFullBinary program) = do
       hash <- return $ RemoteStore.calculateHash program
       say $ "preparing for " ++ (show hash)
-      _ <- spawn workerNode (queryWorkerPreparationClosure (masterProcess, hash))
-      prepared <- expect -- TODO match workerNodes?
+      _ <- spawn slaveNode (querySlavePreparationClosure (masterProcess, hash))
+      prepared <- expect -- TODO match slaveNodes?
       case prepared of
        Prepared -> say $ "already prepared: " ++ (show hash)
        Unprepared -> do
          say $ "distributing " ++ (show hash)
          before <- liftIO getCurrentTime
-         _ <- spawn workerNode (prepareWorkerClosure (masterProcess, hash, program))
-         ok <- expect -- TODO match workerNodes?
+         _ <- spawn slaveNode (prepareSlaveClosure (masterProcess, hash, program))
+         ok <- expect -- TODO match slaveNodes?
          after <- liftIO getCurrentTime
          case ok of
           PreparationFinished -> say $ "distribution took: " ++ (show $ diffUTCTime after before)
       return $ PreparedDeployFullBinary hash
-    prepareWorkerForTask d = return d -- nothing to prepare for other tasks (for now)
+    prepareSlaveForTask d = return d -- nothing to prepare for other tasks (for now)
 
 -- remote logic
 
-handleWorkerTask :: TaskTransport -> Process ()
-handleWorkerTask (TaskTransport masterProcess taskMetaData taskDef dataDef resultDef) = do
+handleSlaveTask :: TaskTransport -> Process ()
+handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDef resultDef) = do
   handledResult <- (
     do
       acceptTime <- liftIO getCurrentTime
@@ -244,7 +244,7 @@ handleWorkerTask (TaskTransport masterProcess taskMetaData taskDef dataDef resul
       result <- liftIO (processTask taskDef dataDef)
       say $ "processing done for: " ++ taskName
       processingDoneTime <- liftIO getCurrentTime
-      liftIO (handleWorkerResult dataDef resultDef result acceptTime processingDoneTime) >>= return . Right
+      liftIO (handleSlaveResult dataDef resultDef result acceptTime processingDoneTime) >>= return . Right
     ) `catch` buildError
   say $ "replying"
   send masterProcess ((taskMetaData, handledResult) :: TransportedResult)
@@ -257,8 +257,8 @@ handleWorkerTask (TaskTransport masterProcess taskMetaData taskDef dataDef resul
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
 
-handleWorkerResult :: DataDef -> ResultDef -> (Either FilePath TaskResult, RunStat) -> UTCTime -> UTCTime -> IO (TaskResult, RemoteRunStat)
-handleWorkerResult dataDef resultDef (taskResult, runStat) acceptTime processingDoneTime = do
+handleSlaveResult :: DataDef -> ResultDef -> (Either FilePath TaskResult, RunStat) -> UTCTime -> UTCTime -> IO (TaskResult, RemoteRunStat)
+handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingDoneTime = do
   res <- handleResult
   return (res, serializedRunStat runStat)
   where
@@ -285,35 +285,35 @@ handleWorkerResult dataDef resultDef (taskResult, runStat) acceptTime processing
 
 -- preparation negotiaion
 
-handleQueryWorkerPreparation :: Int -> Process QueryWorkerPreparationResponse
-handleQueryWorkerPreparation hash = liftIO (RemoteStore.get hash) >>= return . (maybe Unprepared (\_ -> Prepared))
+handleQuerySlavePreparation :: Int -> Process QuerySlavePreparationResponse
+handleQuerySlavePreparation hash = liftIO (RemoteStore.get hash) >>= return . (maybe Unprepared (\_ -> Prepared))
 
-handlePrepareWorker :: Int -> ByteString -> Process PrepareWorkerResponse
-handlePrepareWorker hash content = liftIO (RemoteStore.put hash content) >> return PreparationFinished
+handlePrepareSlave :: Int -> ByteString -> Process PrepareSlaveResponse
+handlePrepareSlave hash content = liftIO (RemoteStore.put hash content) >> return PreparationFinished
 
 -- simple tasks
 
-showWorkerNodes :: NodeConfig -> IO ()
-showWorkerNodes config = withWorkerNodes config (
-  \workerNodes -> putStrLn ("Worker nodes: " ++ show workerNodes))
+showSlaveNodes :: NodeConfig -> IO ()
+showSlaveNodes config = withSlaveNodes config (
+  \slaveNodes -> putStrLn ("Slave nodes: " ++ show slaveNodes))
 
-showWorkerNodesWithData :: NodeConfig -> NodeConfig -> String -> IO ()
-showWorkerNodesWithData workerConfig hdfsConfig hdfsFilePath = withWorkerNodes workerConfig (
-  \workerNodes -> do
-    nodesWithData <- findNodesWithData (hdfsConfig, hdfsFilePath) workerNodes
+showSlaveNodesWithData :: NodeConfig -> NodeConfig -> String -> IO ()
+showSlaveNodesWithData slaveConfig hdfsConfig hdfsFilePath = withSlaveNodes slaveConfig (
+  \slaveNodes -> do
+    nodesWithData <- findNodesWithData (hdfsConfig, hdfsFilePath) slaveNodes
     putStrLn $ "Found these nodes with data: " ++ show nodesWithData)
 
-withWorkerNodes :: NodeConfig -> ([NodeId] -> IO ()) -> IO ()
-withWorkerNodes (host, port) action = liftIO $ do
+withSlaveNodes :: NodeConfig -> ([NodeId] -> IO ()) -> IO ()
+withSlaveNodes (host, port) action = liftIO $ do
   backend <- initializeBackend host (show port) initRemoteTable
-  startMaster backend (\workerNodes -> liftIO (action workerNodes))
+  startMaster backend (\slaveNodes -> liftIO (action slaveNodes))
 
-shutdownWorkerNodes :: NodeConfig -> IO ()
-shutdownWorkerNodes (host, port) = do
+shutdownSlaveNodes :: NodeConfig -> IO ()
+shutdownSlaveNodes (host, port) = do
   backend <- initializeBackend host (show port) rtable
-  startMaster backend $ \workerNodes -> do
-    say $ "found " ++ (show $ length workerNodes) ++ " worker nodes, shutting them down"
-    forM_ workerNodes terminateSlave
+  startMaster backend $ \slaveNodes -> do
+    say $ "found " ++ (show $ length slaveNodes) ++ " slave nodes, shutting them down"
+    forM_ slaveNodes terminateSlave
     -- try terminateAllSlaves instead?
 
 taskDescription :: TaskDef -> DataDef -> NodeId -> String

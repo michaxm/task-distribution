@@ -9,7 +9,7 @@ import qualified System.Log.Logger as L
 import ClusterComputing.LogConfiguration (initDefaultLogging)
 import ClusterComputing.RemoteExecutionSupport
 import ClusterComputing.RunComputation
-import ClusterComputing.TaskDistribution (startWorkerNode, showWorkerNodes, showWorkerNodesWithData, shutdownWorkerNodes)
+import ClusterComputing.TaskDistribution (startSlaveNode, showSlaveNodes, showSlaveNodesWithData, shutdownSlaveNodes)
 import TaskSpawning.TaskTypes
 
 import FullBinaryExamples
@@ -22,10 +22,10 @@ main = withRemoteExecutionSupport calculateVisits $ do
   args <- getArgs
   case args of
    ("master" : masterArgs) -> runMaster (parseMasterOpts masterArgs)
-   ["worker", workerHost, workerPort] -> startWorkerNode (workerHost, (read workerPort))
-   ["showworkers"] -> showWorkerNodes localConfig
-   ["workerswithhdfsdata", host, port, hdfsFilePath] -> showWorkerNodesWithData localConfig (host, read port) hdfsFilePath
-   ["shutdown"] -> shutdownWorkerNodes localConfig
+   ["slave", slaveHost, slavePort] -> startSlaveNode (slaveHost, (read slavePort))
+   ["showslaves"] -> showSlaveNodes localConfig
+   ["slaveswithhdfsdata", host, port, hdfsFilePath] -> showSlaveNodesWithData localConfig (host, read port) hdfsFilePath
+   ["shutdown"] -> shutdownSlaveNodes localConfig
    _ -> userSyntaxError "unknown mode"
 
 localConfig :: HdfsConfig
@@ -41,9 +41,9 @@ usageInfo = "Syntax: master"
             ++ " <module:<module path>|fullbinary|serializethunkdemo:<demo function>:<demo arg>|objectcodedemo>"
             ++ " <simpledata:numDBs|hdfs:<thrift server port>:<file path>"
             ++ " <collectonmaster|discard|storeinhdfs:<outputprefix>>\n"
-            ++ "| worker <worker host> <worker port>\n"
-            ++ "| showworkers\n"
-            ++ "| workerswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
+            ++ "| slave <slave host> <slave port>\n"
+            ++ "| showslaves\n"
+            ++ "| slaveswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
             ++ "| shutdown\n"
             ++ "\n"
             ++ "demo functions (with demo arg description): append:<suffix> | filter:<infixfilter> | visitcalc:unused \n"

@@ -1,5 +1,5 @@
 module TaskSpawning.ObjectCodeModuleDeployment (
-  loadObjectCode, codeExecutionOnWorker,
+  loadObjectCode, codeExecutionOnSlave,
   -- visible for testing:
   buildLibs
   ) where
@@ -28,25 +28,25 @@ getConfig key = do
       parseConfig :: [String] -> (String, String)
       parseConfig es = if length es < 2 then ("", "") else (head es, concat $ tail es)
 
-codeExecutionOnWorker :: BL.ByteString -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
-codeExecutionOnWorker objectCode taskInput = do
+codeExecutionOnSlave :: BL.ByteString -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
+codeExecutionOnSlave objectCode taskInput = do
   ((res, execDur), totalDur) <- measureDuration $ withSystemTempDirectory "object-code-build-dir" $ \builddir -> do
-    codeExecutionOnWorker' taskInput builddir objectCode
+    codeExecutionOnSlave' taskInput builddir objectCode
   return (res, totalDur - execDur, execDur)
 
-codeExecutionOnWorker' :: TaskInput -> FilePath -> BL.ByteString -> IO (TaskResult, NominalDiffTime)
-codeExecutionOnWorker' taskInput builddir objectCode = do
-  logInfo "worker: creating execution frame"
+codeExecutionOnSlave' :: TaskInput -> FilePath -> BL.ByteString -> IO (TaskResult, NominalDiffTime)
+codeExecutionOnSlave' taskInput builddir objectCode = do
+  logInfo "slave: creating execution frame"
   _ <- executeExternal "ghc" ["-no-link", "-outputdir", builddir, "object-code-app/RemoteExecutable.hs", "object-code-app/RemoteExecutor.hs"]
-  logInfo "worker: saving transported code"
+  logInfo "slave: saving transported code"
   objectCodeFilePath <- return $ builddir ++ "/RemoteExecutable.o"
   BL.writeFile objectCodeFilePath objectCode
   binaryPath <- return $ builddir++"/binary"
-  logInfo $ "worker: linking: " ++ binaryPath
+  logInfo $ "slave: linking: " ++ binaryPath
   libs <- determineLibs
   _ <- executeExternal "ghc" (["-o", binaryPath, builddir++"/Main.o", objectCodeFilePath] ++ (fst libs))
-  logInfo $ "worker: running " ++ binaryPath
-  logDebug $ "worker: task input: " ++ (show taskInput)
+  logInfo $ "slave: running " ++ binaryPath
+  logDebug $ "slave: task input: " ++ (show taskInput)
   (result, execDur) <- measureDuration $ withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) $ \taskInputFilePath ->
     withEnv "LD_LIBRARY_PATH" (concat $ intersperse ":" $ snd libs) $ do
       executeExternal binaryPath [taskInputFilePath]
