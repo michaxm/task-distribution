@@ -29,9 +29,10 @@ import ClusterComputing.HdfsWriter (writeEntriesToFile)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
 import qualified TaskSpawning.BinaryStorage as RemoteStore
-import TaskSpawning.ExecutionUtil (measureDuration, executeExternal)
+import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResult)
 import TaskSpawning.TaskSpawning (processTask, RunStat)
 import TaskSpawning.TaskTypes
+import Util.Logging
 
 {-
  The bits in this file are arranged so that the less verbose Template Haskell version would work. That version is not used due to incompability
@@ -275,7 +276,7 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
         handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix) plainResult = writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (getFileNamePart path)) plainResult
         handlePlainResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
-        handleFileResult _ ReturnAsMessage _ = error "not implemented, returning saved contents of a file does not make much sense"
+        handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
         handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
         handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix) resultFilePath = writeToHdfs $ executeExternal "hdfs" ["dfs", "-copyFromLocal", resultFilePath, outputPrefix ++ "/" ++ (getFileNamePart path)]
         handleFileResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
@@ -284,6 +285,10 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
           (_, storeDur) <- measureDuration $ writeAction
           putStrLn $ "stored result data in: " ++ (show storeDur)
           return []
+        readResultFromFile :: FilePath -> IO TaskResult
+        readResultFromFile f = logWarn ("Reading result from file: "++f++", these parameters are probably unnecessarily imperformant")
+                               >> readFile f
+                               >>= parseResult
 
 -- preparation negotiaion
 

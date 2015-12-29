@@ -66,7 +66,7 @@ deserializeTaskInput s = withErrorAction logError "Could not read input data" $ 
 
 -- TODO move out of here
 parseResult :: String -> IO TaskResult
-parseResult s = withErrorPrefix ("Cannot parse result: "++s) $ return $! (read s :: TaskResult)
+parseResult s = withErrorPrefix ("Cannot parse result: "++s) $ return $! (lines s :: TaskResult)
 
 executeExternal :: FilePath -> [String] -> IO String
 executeExternal executable args = do

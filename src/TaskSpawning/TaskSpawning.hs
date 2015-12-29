@@ -29,6 +29,11 @@ executeSerializedThunkArg = "executeserializedthunk"
 
 type RunStat = (NominalDiffTime, NominalDiffTime, NominalDiffTime)
 
+{-|
+  Apply the task on the data, producing either a location, where the results are stored, or the results directly.
+  Which of those depends on the distribution type, when external programs are spawned the former can be more efficient,
+  but if there is no such intermediate step, a direct result is better.
+|-}
 processTask :: TaskDef -> DataDef -> IO (Either FilePath TaskResult, RunStat)
 processTask taskDef dataDef = do
 -- TODO real logging  putStrLn "loading data"
@@ -54,7 +59,7 @@ applyTaskLogic (PreparedDeployFullBinary hash) taskInput = do
 -- Serialized thunk deployment step 2/3: run within slave process to deploy the distributed task binary
 applyTaskLogic (UnevaluatedThunk function program) taskInput = DST.deployAndRunSerializedThunk executeSerializedThunkArg function program taskInput >>= return . (onFirst Left)
 -- Partial binary deployment step 2/2: receive distribution on slave, prepare input data, link object file and spawn slave process, read its output
-applyTaskLogic (ObjectCodeModule objectCode) taskInput = DOC.codeExecutionOnSlave objectCode taskInput >>= return . (onFirst Right)
+applyTaskLogic (ObjectCodeModule objectCode) taskInput = DOC.codeExecutionOnSlave objectCode taskInput >>= return . (onFirst Right) -- TODO switch to location ("Left")
 
 onFirst :: (a -> a') -> (a, b, c) -> (a', b, c)
 onFirst f (a, b, c) = (f a, b, c)
