@@ -179,7 +179,7 @@ distributeWork _ _ _ [] _ _ _ _ numWaiting collected = do
   distributeWork undefined undefined undefined [] undefined undefined undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
 -- distribute as much as possible, otherwise collect single result and retry :
 distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef slaveNodes numBusyNodes freeNodes numWaiting collected = do
-  nodesWithData <- liftIO $ findNodesWithData (_hdfsInputLocation dataDef) freeNodes
+  nodesWithData <- liftIO $ nodesWithData' dataDef
   if null nodesWithData
     then do
     if numBusyNodes <= 0 then error "no slave accepts the task" else say $ "collecting since all slaves are busy"
@@ -192,6 +192,8 @@ distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest)
     distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest resultDef slaveNodes (numBusyNodes+1) (delete (head nodesWithData) freeNodes) numWaiting collected
       where
         spawnSlaveProcess' = spawnSlaveProcess masterProcess taskDef dataDef resultDef
+        nodesWithData' (HdfsData loc) = findNodesWithData loc freeNodes
+        nodesWithData' (PseudoDB _) = return freeNodes -- no data locality strategy for simple pseudo db
 
 collectSingle :: (Serializable a) => Process (TaskMetaData, Maybe (a, TaskRunStat))
 collectSingle = do
