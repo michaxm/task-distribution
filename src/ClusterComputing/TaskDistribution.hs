@@ -25,9 +25,9 @@ import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
 import ClusterComputing.DataLocality (findNodesWithData)
-import ClusterComputing.HdfsWriter (writeEntriesToFile)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
+import DataAccess.HdfsWriter (writeEntriesToFile)
 import qualified TaskSpawning.BinaryStorage as RemoteStore
 import TaskSpawning.TaskDefinition
 import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResult)

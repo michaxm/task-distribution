@@ -1,4 +1,4 @@
-module ClusterComputing.HdfsWriter where
+module DataAccess.HdfsWriter where
 
 import Data.List (intersperse)
 import qualified Data.Text.Lazy as TL

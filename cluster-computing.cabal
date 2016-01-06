@@ -23,11 +23,11 @@ library
                      , ClusterComputing.LogConfiguration
                      , TaskSpawning.RemoteExecutionSupport
                      , DataAccess.DataSource
-  other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality, ClusterComputing.HdfsWriter
+  other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality
                      , TaskSpawning.TaskSpawning
                      , TaskSpawning.TaskDefinition, TaskSpawning.ExecutionUtil, TaskSpawning.BinaryStorage
                      , TaskSpawning.SourceCodeExecution, TaskSpawning.DeployFullBinary, TaskSpawning.DeploySerializedThunk, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
-                     , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
+                     , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource, DataAccess.HdfsWriter
                      , Util.ErrorHandling, Util.Logging
   ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
   build-depends:       base >= 4.7 && < 5
