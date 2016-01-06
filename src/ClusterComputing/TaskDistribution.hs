@@ -30,6 +30,7 @@ import ClusterComputing.TaskTransport
 import DataAccess.HdfsWriter (writeEntriesToFile)
 import qualified TaskSpawning.BinaryStorage as RemoteStore
 import TaskSpawning.TaskDefinition
+import TaskSpawning.TaskDescription
 import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResult)
 import TaskSpawning.TaskSpawning (processTask, RunStat)
 import Types.TaskTypes
@@ -326,15 +327,3 @@ shutdownSlaveNodes (host, port) = do
 
 taskDescription :: TaskDef -> DataDef -> NodeId -> String
 taskDescription t d n = "task: " ++ (describe t) ++ " " ++ (describe d) ++ " on " ++ (show n)
-
-class Describable a where
-  describe :: a -> String
-instance Describable TaskDef where
-  describe (SourceCodeModule n _) = n
-  describe (DeployFullBinary _) = "user function defined in main"
-  describe (PreparedDeployFullBinary _) = "user function defined in main (prepared)"
-  describe (UnevaluatedThunk _ _) = "unevaluated user function"
-  describe (ObjectCodeModule _) = "object code module"
-instance Describable DataDef where
-  describe (HdfsData (_, p)) = p
-  describe (PseudoDB n) = show n

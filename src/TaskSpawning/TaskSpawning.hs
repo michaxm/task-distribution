@@ -19,6 +19,7 @@ import TaskSpawning.ExecutionUtil (measureDuration)
 import TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction)
 import TaskSpawning.SourceCodeExecution (loadTask)
 import TaskSpawning.TaskDefinition
+import TaskSpawning.TaskDescription
 import Types.TaskTypes
 import Util.ErrorHandling
 import Util.Logging
@@ -36,11 +37,11 @@ type RunStat = (NominalDiffTime, NominalDiffTime, NominalDiffTime)
 |-}
 processTask :: TaskDef -> DataDef -> IO (Either FilePath TaskResult, RunStat)
 processTask taskDef dataDef = do
--- TODO real logging  putStrLn "loading data"
+  logDebug $ "loading data for" ++ (describe dataDef)
   (taskInput, loadingDataDuration) <- measureDuration $ loadData dataDef
--- TODO real logging putStrLn "applying to task"
+  logDebug $ "applying data to task: " ++ (describe taskDef)
   (result, loadingTaskDuration, executionDuration)  <- applyTaskLogic taskDef taskInput
--- TODO real logging putStrLn "returning result"
+  logDebug $ "returning result for " ++ (describe dataDef)
   return (result, (loadingDataDuration, loadingTaskDuration, executionDuration))
 
 applyTaskLogic :: TaskDef -> TaskInput -> IO (Either FilePath TaskResult, NominalDiffTime, NominalDiffTime)

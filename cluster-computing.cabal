@@ -24,7 +24,7 @@ library
                      , TaskSpawning.RemoteExecutionSupport
   other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality
                      , TaskSpawning.TaskSpawning
-                     , TaskSpawning.TaskDefinition, TaskSpawning.ExecutionUtil, TaskSpawning.BinaryStorage
+                     , TaskSpawning.TaskDefinition, TaskSpawning.TaskDescription, TaskSpawning.ExecutionUtil, TaskSpawning.BinaryStorage
                      , TaskSpawning.SourceCodeExecution, TaskSpawning.DeployFullBinary, TaskSpawning.DeploySerializedThunk, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource, DataAccess.HdfsWriter
                      , Util.ErrorHandling, Util.Logging
