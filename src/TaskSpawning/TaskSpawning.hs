@@ -8,7 +8,6 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Time.Clock (NominalDiffTime)
 import qualified Language.Haskell.Interpreter as I
 
-import qualified DataAccess.DataSource as DS
 import qualified DataAccess.SimpleDataSource as SDS
 import qualified DataAccess.HdfsDataSource as HDS
 
@@ -67,8 +66,8 @@ onFirst f (a, b, c) = (f a, b, c)
 
 -- FIXME port not open (file not found?) error silently dropped
 loadData :: DataDef -> IO TaskResult
-loadData (HdfsData (config, filePath)) = DS._loadEntries (HDS.dataSource config) filePath -- TODO distinguish String/Read by overlapping instances or otherwise?
-loadData (PseudoDB numDB) = DS._loadEntries SDS.stringSource ("resources/pseudo-db/" ++ (show numDB)) -- TODO make relative path configurable?
+loadData (HdfsData hdfsLocation) = HDS.loadEntries hdfsLocation
+loadData (PseudoDB numDB) = SDS.loadEntries ("resources/pseudo-db/" ++ (show numDB)) -- TODO make relative path configurable?
 
 -- Full binary deployment step 1/3
 fullBinarySerializationOnMaster :: FilePath -> IO TaskDef

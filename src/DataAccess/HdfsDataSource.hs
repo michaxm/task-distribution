@@ -3,17 +3,14 @@ module DataAccess.HdfsDataSource where
 import qualified Data.Text.Lazy as TL
 import System.HDFS.HDFSClient
 
-import DataAccess.DataSource
-import Types.HdfsConfigTypes (HdfsConfig)
+import Types.TaskTypes (TaskInput)
+import Types.HdfsConfigTypes (HdfsLocation)
 import Util.ErrorHandling
 
-dataSource :: HdfsConfig -> DataSource String
-dataSource config = DataSource { _loadEntries = loadEntries' }
+loadEntries :: HdfsLocation -> IO TaskInput
+loadEntries hdfsLocation =
+  putStrLn targetDescription >>
+  withErrorPrefix ("Error accessing "++ targetDescription) (uncurry hdfsReadCompleteFile hdfsLocation) >>=
+  return . lines . TL.unpack
   where
-    loadEntries' :: String -> IO [String]
-    loadEntries' filePath =
-      putStrLn targetDescription >>
-      withErrorPrefix ("Error accessing "++targetDescription) (hdfsReadCompleteFile config filePath) >>=
-      return . lines . TL.unpack
-      where
-        targetDescription = filePath ++ " " ++ (show config)
+    targetDescription = show hdfsLocation

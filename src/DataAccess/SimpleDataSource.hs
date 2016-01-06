@@ -1,15 +1,9 @@
-module DataAccess.SimpleDataSource (stringSource, dataSource) where
+module DataAccess.SimpleDataSource where
 
-import DataAccess.DataSource
+import Types.TaskTypes (TaskInput)
 
-stringSource :: DataSource String
-stringSource = DataSource { _loadEntries = loadEntries' id }
-
-dataSource ::  (Read a) => DataSource a
-dataSource = DataSource { _loadEntries = loadEntries' read }
-
-loadEntries' :: (String -> a) -> String -> IO [a]
-loadEntries' f filePath =
+loadEntries :: FilePath -> IO TaskInput
+loadEntries filePath =
       putStrLn ("accessing " ++ filePath) >>
       readFile filePath >>=
-      return . map f . lines
+      return . lines

@@ -22,7 +22,6 @@ library
                      , ClusterComputing.TaskDistribution
                      , ClusterComputing.LogConfiguration
                      , TaskSpawning.RemoteExecutionSupport
-                     , DataAccess.DataSource
   other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality
                      , TaskSpawning.TaskSpawning
                      , TaskSpawning.TaskDefinition, TaskSpawning.ExecutionUtil, TaskSpawning.BinaryStorage
