@@ -7,9 +7,9 @@ import System.Environment (getArgs, getExecutablePath)
 import qualified System.Log.Logger as L
 
 import ClusterComputing.LogConfiguration (initDefaultLogging)
-import ClusterComputing.RemoteExecutionSupport
 import ClusterComputing.RunComputation
 import ClusterComputing.TaskDistribution (startSlaveNode, showSlaveNodes, showSlaveNodesWithData, shutdownSlaveNodes)
+import TaskSpawning.RemoteExecutionSupport
 import Types.HdfsConfigTypes
 import Types.TaskTypes
 

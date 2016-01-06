@@ -21,7 +21,7 @@ library
                      , ClusterComputing.RunComputation
                      , ClusterComputing.TaskDistribution
                      , ClusterComputing.LogConfiguration
-                     , ClusterComputing.RemoteExecutionSupport
+                     , TaskSpawning.RemoteExecutionSupport
                      , DataAccess.DataSource
   other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality, ClusterComputing.HdfsWriter
                      , TaskSpawning.TaskSpawning

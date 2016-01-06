@@ -2,7 +2,7 @@
   Catches expected entry points for full binary deployment / thunk serialization.
   These modes deploy the itself as a program and are called remote with different arguments, which is handled here.
 |-}
-module ClusterComputing.RemoteExecutionSupport where
+module TaskSpawning.RemoteExecutionSupport where
 
 import System.Environment (getArgs)
 
