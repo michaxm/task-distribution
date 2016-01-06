@@ -10,7 +10,8 @@ import ClusterComputing.LogConfiguration (initDefaultLogging)
 import ClusterComputing.RemoteExecutionSupport
 import ClusterComputing.RunComputation
 import ClusterComputing.TaskDistribution (startSlaveNode, showSlaveNodes, showSlaveNodesWithData, shutdownSlaveNodes)
-import TaskSpawning.TaskTypes
+import Types.HdfsConfigTypes
+import Types.TaskTypes
 
 import FullBinaryExamples
 import RemoteExecutable

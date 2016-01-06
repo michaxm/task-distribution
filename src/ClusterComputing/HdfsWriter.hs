@@ -4,7 +4,7 @@ import Data.List (intersperse)
 import qualified Data.Text.Lazy as TL
 import System.HDFS.HDFSClient
 
-import TaskSpawning.TaskTypes (HdfsConfig)
+import Types.HdfsConfigTypes (HdfsConfig)
 import Util.ErrorHandling
 import Util.Logging
 

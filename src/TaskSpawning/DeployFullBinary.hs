@@ -8,7 +8,7 @@ import System.FilePath ()
 import System.Process (readProcessWithExitCode)
 
 import TaskSpawning.ExecutionUtil
-import TaskSpawning.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
+import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
 import Util.Logging
 
 deployAndRunFullBinary :: String -> BL.ByteString -> TaskInput -> IO (FilePath, NominalDiffTime, NominalDiffTime)

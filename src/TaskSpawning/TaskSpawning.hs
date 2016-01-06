@@ -19,7 +19,8 @@ import qualified TaskSpawning.ObjectCodeModuleDeployment as DOC
 import TaskSpawning.ExecutionUtil (measureDuration)
 import TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction)
 import TaskSpawning.SourceCodeExecution (loadTask)
-import TaskSpawning.TaskTypes
+import TaskSpawning.TaskDefinition
+import Types.TaskTypes
 import Util.ErrorHandling
 import Util.Logging
 

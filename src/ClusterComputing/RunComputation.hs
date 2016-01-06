@@ -9,8 +9,10 @@ import System.Environment (getExecutablePath)
 import qualified System.HDFS.HDFSClient as HDFS --TODO ok to be referenced here? probably yes, but consider again later
 
 import ClusterComputing.TaskDistribution
-import TaskSpawning.TaskTypes
 import TaskSpawning.TaskSpawning (fullBinarySerializationOnMaster, serializedThunkSerializationOnMaster, objectCodeSerializationOnMaster)
+import TaskSpawning.TaskDefinition
+import Types.HdfsConfigTypes
+import Types.TaskTypes
 
 data MasterOptions = MasterOptions {
   _host :: String,

@@ -7,7 +7,7 @@ module ClusterComputing.RemoteExecutionSupport where
 import System.Environment (getArgs)
 
 import TaskSpawning.TaskSpawning (executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization)
-import TaskSpawning.TaskTypes
+import Types.TaskTypes
 
 withRemoteExecutionSupport :: (TaskInput -> TaskResult) -> IO () -> IO ()
 withRemoteExecutionSupport fn = withSerializedThunkRemoteExecutionSupport . withFullBinaryRemoteExecutionSupport fn

@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
-module TaskSpawning.TaskTypes where
--- TODO clean up module top level hierarchy, this is common, maybe put TaskDef/DataSpec in separate module
+module TaskSpawning.TaskDefinition where
 
 import Control.Distributed.Process.Serializable (Serializable)
 import Data.Binary (Binary)
@@ -8,8 +7,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 
-type TaskInput = [String]
-type TaskResult = [String]
+import Types.HdfsConfigTypes
 
 {-
   The way how code is to be distributed. The approaches have different disadvantages:
@@ -45,9 +43,6 @@ instance Serializable TaskDef
  - hdfs data source
  - very simple file format for testing purposes, files with numbers expected relative to work directory
 -}
-type HdfsConfig = (String, Int)
-type HdfsPath = String
-type HdfsLocation = (HdfsConfig, HdfsPath)
 data DataDef
   = HdfsData {
     _hdfsInputLocation :: HdfsLocation

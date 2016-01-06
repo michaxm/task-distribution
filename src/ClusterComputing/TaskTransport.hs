@@ -10,7 +10,7 @@ import Data.Time.Clock (UTCTime(..), NominalDiffTime)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 
-import TaskSpawning.TaskTypes
+import TaskSpawning.TaskDefinition
 
 data TaskTransport = TaskTransport {
   _masterProcess :: ProcessId,

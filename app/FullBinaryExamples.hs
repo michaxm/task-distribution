@@ -2,7 +2,7 @@ module FullBinaryExamples where
 
 import Data.List (isInfixOf)
 
-import TaskSpawning.TaskTypes
+import Types.TaskTypes
 
 appendDemo :: String -> TaskInput -> TaskResult
 appendDemo  demoArg = map (++ (" "++demoArg))

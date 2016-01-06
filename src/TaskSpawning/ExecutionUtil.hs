@@ -14,7 +14,7 @@ import System.IO.Error (catchIOError)
 import System.IO.Temp (withSystemTempFile)
 import System.Process (readProcessWithExitCode)
 
-import TaskSpawning.TaskTypes (TaskInput, TaskResult)
+import Types.TaskTypes (TaskInput, TaskResult)
 import Util.ErrorHandling
 import Util.Logging
 

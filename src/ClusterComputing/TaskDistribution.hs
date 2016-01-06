@@ -29,9 +29,10 @@ import ClusterComputing.HdfsWriter (writeEntriesToFile)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
 import qualified TaskSpawning.BinaryStorage as RemoteStore
+import TaskSpawning.TaskDefinition
 import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResult)
 import TaskSpawning.TaskSpawning (processTask, RunStat)
-import TaskSpawning.TaskTypes
+import Types.TaskTypes
 import Util.Logging
 
 {-

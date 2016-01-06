@@ -7,7 +7,7 @@ import System.FilePath ()
 
 import TaskSpawning.DeployFullBinary (deployAndRunExternalBinary, fullBinaryExecution)
 import TaskSpawning.FunctionSerialization (deserializeFunction)
-import TaskSpawning.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
+import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
 
 {-
  Deploys a given binary and executes it with the arguments defined by convention, including the serialized closure runnable in that program.

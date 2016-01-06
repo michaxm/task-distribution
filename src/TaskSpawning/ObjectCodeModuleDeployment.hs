@@ -12,7 +12,7 @@ import System.Directory (getHomeDirectory)
 import System.IO.Temp (withSystemTempDirectory)
 
 import TaskSpawning.ExecutionUtil
-import TaskSpawning.TaskTypes
+import Types.TaskTypes
 import Util.Logging
 
 loadObjectCode :: IO BL.ByteString
