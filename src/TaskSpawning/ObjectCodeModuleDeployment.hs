@@ -63,7 +63,6 @@ determineLibs = do
   remoteLibs <- readFile "etc/remotelibs"
   return $ buildLibs False homeDir libLocation ghcVersion remoteLibs
 
--- TODO advantages of .so?
 -- transforms system configuration and given libs to (shared libs, lib dirs)
 buildLibs :: Bool -> FilePath -> FilePath -> String -> String -> ([String], [String])
 buildLibs dynamic homeDir libLocation ghc = unzip . buildLibs'
