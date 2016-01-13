@@ -280,13 +280,16 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
         handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
         handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
         handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
-        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix) resultFilePath = writeToHdfs $ executeExternal "hdfs" ["dfs", "-copyFromLocal", resultFilePath, outputPrefix ++ "/" ++ (getFileNamePart path)]
+        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix) resultFilePath = writeToHdfs $ copyToHdfs resultFilePath  outputPrefix (getFileNamePart path)
         handleFileResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         getFileNamePart path = let parts = splitOn "/" path in if null parts then "" else parts !! (length parts -1)
         writeToHdfs writeAction = do
           (_, storeDur) <- measureDuration $ writeAction
           putStrLn $ "stored result data in: " ++ (show storeDur)
           return []
+        copyToHdfs localFile destPath destFilename = do
+          _ <- executeExternal "hdfs" ["dfs", "-mkdir", "-p", destPath]
+          executeExternal "hdfs" ["dfs", "-copyFromLocal", localFile, destPath ++ "/" ++ destFilename]
         readResultFromFile :: FilePath -> IO TaskResult
         readResultFromFile f = logWarn ("Reading result from file: "++f++", these parameters are probably unnecessarily imperformant")
                                >> readFile f
