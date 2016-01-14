@@ -16,7 +16,10 @@ withFullBinaryRemoteExecutionSupport :: (TaskInput -> TaskResult) -> IO () -> IO
 withFullBinaryRemoteExecutionSupport fn mainAction = do
   args <- getArgs
   case args of
-   [mode, taskInputFilePath, taskOutputFilePath] -> if mode == executeFullBinaryArg then executionWithinSlaveProcessForFullBinaryDeployment fn taskInputFilePath taskOutputFilePath else mainAction
+   [mode, inputMode, taskInputFilePath, taskOutputFilePath] ->
+     if mode == executeFullBinaryArg
+     then executionWithinSlaveProcessForFullBinaryDeployment (read inputMode) fn taskInputFilePath taskOutputFilePath
+     else mainAction
    _ -> mainAction
 
 withSerializedThunkRemoteExecutionSupport :: IO () -> IO ()

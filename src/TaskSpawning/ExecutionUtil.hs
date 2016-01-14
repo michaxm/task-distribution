@@ -1,6 +1,21 @@
-module TaskSpawning.ExecutionUtil where
+module TaskSpawning.ExecutionUtil (
+  withEnv,
+  withTempBLFile,
+  withTempBLCFile,
+  withTempFile,
+  ignoreIOExceptions,
+  expectSilentSuccess,
+  expectSuccess,
+  createTempFilePath,
+  serializeTaskInput,
+  deserializeTaskInput,
+  parseResult, -- TODO move out of here
+  executeExternal,
+  measureDuration,
+  readStdTillEOF
+  ) where
 
-import Control.Exception.Base (bracket)
+import Control.Exception.Base (bracket, catch)
 -- FIXME really lazy? rather use strict???
 import qualified Data.ByteString.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
@@ -10,7 +25,7 @@ import System.Directory (removeFile)
 import System.Environment (lookupEnv, setEnv, unsetEnv)
 import System.Exit (ExitCode(..))
 import System.FilePath ()
-import System.IO.Error (catchIOError)
+import System.IO.Error (catchIOError, isEOFError)
 import System.IO.Temp (withSystemTempFile)
 import System.Process (readProcessWithExitCode)
 
@@ -45,7 +60,7 @@ ignoreIOExceptions :: IO () -> IO ()
 ignoreIOExceptions io = io `catchIOError` (\_ -> return ())
 
 expectSilentSuccess :: (ExitCode, String, String) -> IO ()
-expectSilentSuccess executionOutput= expectSuccess executionOutput >>= \res -> case res of
+expectSilentSuccess executionOutput = expectSuccess executionOutput >>= \res -> case res of
   "" -> return ()
   _ -> error $ "no output expected, but got: " ++ res
 
@@ -64,7 +79,6 @@ serializeTaskInput = BLC.pack . show
 deserializeTaskInput :: BLC.ByteString -> IO TaskInput
 deserializeTaskInput s = withErrorAction logError "Could not read input data" $ return $ read $ BLC.unpack s
 
--- TODO move out of here
 parseResult :: String -> IO TaskResult
 parseResult s = withErrorPrefix ("Cannot parse result: "++s) $ return $! (lines s :: TaskResult)
 
@@ -80,3 +94,18 @@ measureDuration action = do
   res <- action -- TODO eager enough?
   after <- getCurrentTime
   return (res, diffUTCTime after before)
+
+readStdTillEOF :: IO TaskInput
+readStdTillEOF = do
+  l <- readLnUnlessEOF
+  case l of
+   Nothing -> return []
+   (Just line) -> do
+     rest <- readStdTillEOF
+     return (line:rest)
+  where
+    readLnUnlessEOF :: IO (Maybe String)
+    readLnUnlessEOF = (getLine >>= return . Just) `catch` eofHandler
+      where
+        eofHandler :: IOError -> IO (Maybe String)
+        eofHandler e = if isEOFError e then return Nothing else ioError e

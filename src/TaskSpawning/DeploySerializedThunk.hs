@@ -5,7 +5,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Time.Clock (NominalDiffTime)
 import System.FilePath ()
 
-import TaskSpawning.DeployFullBinary (deployAndRunExternalBinary, fullBinaryExecution)
+import TaskSpawning.DeployFullBinary (deployAndRunExternalBinary, fullBinaryExecution, InputMode(..))
 import TaskSpawning.FunctionSerialization (deserializeFunction)
 import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
 
@@ -17,7 +17,7 @@ import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generali
 deployAndRunSerializedThunk :: String -> BL.ByteString -> BL.ByteString -> TaskInput -> IO (FilePath, NominalDiffTime, NominalDiffTime)
 deployAndRunSerializedThunk mainArg taskFunction =
   -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
-  deployAndRunExternalBinary [mainArg, show taskFunction]
+  deployAndRunExternalBinary FileInput [mainArg, show taskFunction]
 
 {-
  Accepts the distributed, serialized closure as part of the spawned program and executes it.
@@ -29,4 +29,4 @@ acceptAndExecuteSerializedThunk :: BL.ByteString -> IO (TaskInput -> TaskResult)
 acceptAndExecuteSerializedThunk taskFn = (deserializeFunction taskFn :: IO (TaskInput -> TaskResult)) >>= (\f -> return (take 10 . f))
 
 serializedThunkExecution :: (TaskInput -> TaskResult) -> FilePath -> FilePath -> IO ()
-serializedThunkExecution = fullBinaryExecution -- nothing different at this point
+serializedThunkExecution = fullBinaryExecution FileInput -- nothing different at this point, streaming not implemented here

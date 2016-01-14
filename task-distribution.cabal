@@ -24,7 +24,7 @@ library
                      , TaskSpawning.RemoteExecutionSupport
   other-modules:       ClusterComputing.TaskTransport, ClusterComputing.DataLocality
                      , TaskSpawning.TaskSpawning
-                     , TaskSpawning.TaskDefinition, TaskSpawning.TaskDescription, TaskSpawning.ExecutionUtil, TaskSpawning.BinaryStorage
+                     , TaskSpawning.TaskDefinition, TaskSpawning.TaskDescription, TaskSpawning.ExecutionUtil, TaskSpawning.StreamToExecutableUtil, TaskSpawning.BinaryStorage
                      , TaskSpawning.SourceCodeExecution, TaskSpawning.DeployFullBinary, TaskSpawning.DeploySerializedThunk, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource, DataAccess.HdfsWriter
                      , Util.ErrorHandling, Util.Logging
@@ -47,6 +47,7 @@ library
                      , hslogger
                      , time
                      , hashable
+                     , deepseq
   default-language:    Haskell2010
 
 executable example

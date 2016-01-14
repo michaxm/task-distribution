@@ -1,6 +1,7 @@
 module ClusterComputing.RunComputation (
   MasterOptions(..),
   TaskSpec(..),
+  InputMode(..),
   DataSpec(..),
   ResultSpec(..),
   runMaster) where
@@ -29,9 +30,10 @@ data MasterOptions = MasterOptions {
 -}
 data TaskSpec
  = SourceCodeSpec String
- | FullBinaryDeployment
+ | FullBinaryDeployment InputMode
  | SerializedThunk (TaskInput -> TaskResult)
  | ObjectCodeModuleDeployment (TaskInput -> TaskResult)
+data InputMode = File | Stream
 data DataSpec
   = SimpleDataSpec Int
   | HdfsDataSpec HdfsLocation
@@ -55,12 +57,16 @@ buildTaskDef :: TaskSpec -> IO TaskDef
 buildTaskDef (SourceCodeSpec modulePath) = do
   moduleContent <- readFile modulePath
   return $ mkSourceCodeModule modulePath moduleContent
-buildTaskDef FullBinaryDeployment =
-  getExecutablePath >>= fullBinarySerializationOnMaster
+buildTaskDef (FullBinaryDeployment inputMode) =
+  getExecutablePath >>= fullBinarySerializationOnMaster (convertInputMode inputMode)
 buildTaskDef (SerializedThunk function) = do
   selfPath <- getExecutablePath
   serializedThunkSerializationOnMaster selfPath function
 buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeSerializationOnMaster
+
+convertInputMode :: InputMode -> TaskInputMode
+convertInputMode File = FileInput
+convertInputMode Stream = StreamInput
 
 expandDataSpec :: DataSpec -> IO [DataDef]
 expandDataSpec (HdfsDataSpec (config, path)) = do

@@ -52,15 +52,19 @@ applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput = do
   (result, execDuration) <- measureDuration $ return $ taskFn taskInput
   return (result, loadTaskDuration, execDuration) >>= return . (onFirst Right)
 -- Full binary deployment step 2/3: run within slave process to deploy the distributed task binary
-applyTaskLogic (DeployFullBinary program) taskInput = DFB.deployAndRunFullBinary executeFullBinaryArg program taskInput >>= return . (onFirst Left)
-applyTaskLogic (PreparedDeployFullBinary hash) taskInput = do
+applyTaskLogic (DeployFullBinary program inputMode) taskInput = DFB.deployAndRunFullBinary (convertInputMode inputMode) executeFullBinaryArg program taskInput >>= return . (onFirst Left)
+applyTaskLogic (PreparedDeployFullBinary hash inputMode) taskInput = do
   ((Just filePath), taskLoadDur) <- measureDuration $ RemoteStore.get hash --TODO catch unknown binary error nicer
-  (res, execDur) <- DFB.runExternalBinary [executeFullBinaryArg] taskInput filePath
+  (res, execDur) <- DFB.runExternalBinary (convertInputMode inputMode) [executeFullBinaryArg] taskInput filePath
   return (res, taskLoadDur, execDur) >>= return . (onFirst Left)
 -- Serialized thunk deployment step 2/3: run within slave process to deploy the distributed task binary
 applyTaskLogic (UnevaluatedThunk function program) taskInput = DST.deployAndRunSerializedThunk executeSerializedThunkArg function program taskInput >>= return . (onFirst Left)
 -- Partial binary deployment step 2/2: receive distribution on slave, prepare input data, link object file and spawn slave process, read its output
 applyTaskLogic (ObjectCodeModule objectCode) taskInput = DOC.codeExecutionOnSlave objectCode taskInput >>= return . (onFirst Right) -- TODO switch to location ("Left")
+
+convertInputMode :: TaskInputMode -> DFB.InputMode
+convertInputMode FileInput = DFB.FileInput
+convertInputMode StreamInput = DFB.StreamInput
 
 onFirst :: (a -> a') -> (a, b, c) -> (a', b, c)
 onFirst f (a, b, c) = (f a, b, c)
@@ -71,8 +75,10 @@ loadData (HdfsData hdfsLocation) = HDS.loadEntries hdfsLocation
 loadData (PseudoDB numDB) = SDS.loadEntries ("resources/pseudo-db/" ++ (show numDB)) -- TODO make relative path configurable?
 
 -- Full binary deployment step 1/3
-fullBinarySerializationOnMaster :: FilePath -> IO TaskDef
-fullBinarySerializationOnMaster programPath = BL.readFile programPath >>= return . DeployFullBinary
+fullBinarySerializationOnMaster :: TaskInputMode -> FilePath -> IO TaskDef
+fullBinarySerializationOnMaster inputMode programPath = do
+  currentExecutable <- BL.readFile programPath
+  return $ DeployFullBinary currentExecutable inputMode
 
 -- Serialized thunk deployment step 1/3: run within the client/master process to serialize itself.
 serializedThunkSerializationOnMaster :: FilePath -> (TaskInput -> TaskResult) -> IO TaskDef
@@ -82,7 +88,7 @@ serializedThunkSerializationOnMaster programPath function = do
   return $ UnevaluatedThunk taskFn program
 
 -- Full binary deployment step 3/3: run within the spawned process for the distributed executable, applies data to distributed task.
-executionWithinSlaveProcessForFullBinaryDeployment :: (TaskInput -> TaskResult) -> FilePath -> FilePath -> IO ()
+executionWithinSlaveProcessForFullBinaryDeployment :: DFB.InputMode -> (TaskInput -> TaskResult) -> FilePath -> FilePath -> IO ()
 executionWithinSlaveProcessForFullBinaryDeployment = DFB.fullBinaryExecution
 
 -- Serialized thunk deployment step 3/3: run within the spawned process for the distributed executable, applies data to distributed task.

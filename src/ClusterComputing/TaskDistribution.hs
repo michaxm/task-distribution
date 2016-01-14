@@ -220,7 +220,7 @@ spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
   return ()
   where
     prepareSlaveForTask :: TaskDef -> Process TaskDef
-    prepareSlaveForTask (DeployFullBinary program) = do
+    prepareSlaveForTask (DeployFullBinary program inputMode) = do
       hash <- return $ RemoteStore.calculateHash program
       say $ "preparing for " ++ (show hash)
       _ <- spawn slaveNode (querySlavePreparationClosure (masterProcess, hash))
@@ -235,7 +235,7 @@ spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
          after <- liftIO getCurrentTime
          case ok of
           PreparationFinished -> say $ "distribution took: " ++ (show $ diffUTCTime after before)
-      return $ PreparedDeployFullBinary hash
+      return $ PreparedDeployFullBinary hash inputMode
     prepareSlaveForTask d = return d -- nothing to prepare for other tasks (for now)
 
 -- remote logic

@@ -22,10 +22,12 @@ data TaskDef
    _moduleContent :: String
    }
  | DeployFullBinary {
-   _deployable :: ByteString
+   _deployable :: ByteString,
+   _taskInputMode :: TaskInputMode
    }
  | PreparedDeployFullBinary {
-   _preparedFullBinaryHash :: Int
+   _preparedFullBinaryHash :: Int,
+   _taskInputMode :: TaskInputMode
    }
  | UnevaluatedThunk {
    _unevaluatedThunk :: ByteString,
@@ -36,6 +38,14 @@ data TaskDef
    } deriving (Typeable, Generic)
 instance Binary TaskDef
 instance Serializable TaskDef
+
+-- how input is given to task as an external program
+data TaskInputMode
+  = FileInput
+  | StreamInput
+  deriving (Typeable, Generic)
+instance Binary TaskInputMode
+instance Serializable TaskInputMode
 
 {-
  Where data comes from:
