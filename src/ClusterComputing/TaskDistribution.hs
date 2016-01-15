@@ -20,20 +20,20 @@ import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
 import Data.ByteString.Lazy (ByteString)
 import Data.List (delete)
-import Data.List.Split (splitOn)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
 import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
-import DataAccess.HdfsWriter (writeEntriesToFile)
+import DataAccess.HdfsWriter (writeEntriesToFile, stripHDFSPartOfPath)
 import qualified TaskSpawning.BinaryStorage as RemoteStore
 import TaskSpawning.TaskDefinition
 import TaskSpawning.TaskDescription
 import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResult)
 import TaskSpawning.TaskSpawning (processTask, RunStat)
 import Types.TaskTypes
+import Util.FileUtil
 import Util.Logging
 
 {-
@@ -275,14 +275,14 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
       (Left resultFilePath) -> handleFileResult dataDef resultDef resultFilePath
       where
         handlePlainResult _ ReturnAsMessage plainResult = return plainResult
-        handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix) plainResult = writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (getFileNamePart path)) plainResult
+        handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix) plainResult = writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)) plainResult
         handlePlainResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
         handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
         handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
-        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix) resultFilePath = writeToHdfs $ copyToHdfs resultFilePath  outputPrefix (getFileNamePart path)
+        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix) resultFilePath = writeToHdfs $ copyToHdfs resultFilePath (outputPrefix++restpath) filename'
+          where (restpath, filename') = splitBasePath (stripHDFSPartOfPath path)
         handleFileResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
-        getFileNamePart path = let parts = splitOn "/" path in if null parts then "" else parts !! (length parts -1)
         writeToHdfs writeAction = do
           (_, storeDur) <- measureDuration $ writeAction
           putStrLn $ "stored result data in: " ++ (show storeDur)
@@ -304,7 +304,6 @@ handlePrepareSlave :: Int -> ByteString -> Process PrepareSlaveResponse
 handlePrepareSlave hash content = liftIO (RemoteStore.put hash content) >> return PreparationFinished
 
 -- simple tasks
-
 showSlaveNodes :: NodeConfig -> IO ()
 showSlaveNodes config = withSlaveNodes config (
   \slaveNodes -> putStrLn ("Slave nodes: " ++ show slaveNodes))

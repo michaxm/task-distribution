@@ -40,7 +40,7 @@ usageInfo = "Syntax: master"
             ++ " <host>"
             ++ " <port>"
             ++ " <module:<module path>|fullbinary[-stream-input]|serializethunkdemo:<demo function>:<demo arg>|objectcodedemo>"
-            ++ " <simpledata:numDBs|hdfs:<thrift server port>:<file path>"
+            ++ " <simpledata:numDBs|hdfs:<thrift server port>:<file path>[:<subdir depth>[:<filename filter prefix>]]"
             ++ " <collectonmaster|discard|storeinhdfs:<outputprefix>>\n"
             ++ "| slave <slave host> <slave port>\n"
             ++ "| showslaves\n"
@@ -74,7 +74,8 @@ parseMasterOpts args =
     parseDataSpec masterHost args =
       case splitOn ":" args of
        ["simpledata", numDBs] -> SimpleDataSpec $ read numDBs
-       ["hdfs", thriftPort, hdfsPath] -> HdfsDataSpec ((masterHost, read thriftPort), hdfsPath)
+       ("hdfs": thriftPort: hdfsPath: rest) -> HdfsDataSpec ((masterHost, read thriftPort), hdfsPath) depth filter'
+         where depth = if length rest > 0 then read (rest !! 0) else 0; filter' = if length rest > 1 then Just (rest !! 1) else Nothing
        _ -> userSyntaxError $ "unknown data specification: " ++ args
     parseResultSpec args =
       case splitOn ":" args of

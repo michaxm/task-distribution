@@ -27,7 +27,7 @@ library
                      , TaskSpawning.TaskDefinition, TaskSpawning.TaskDescription, TaskSpawning.ExecutionUtil, TaskSpawning.StreamToExecutableUtil, TaskSpawning.BinaryStorage
                      , TaskSpawning.SourceCodeExecution, TaskSpawning.DeployFullBinary, TaskSpawning.DeploySerializedThunk, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
                      , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource, DataAccess.HdfsWriter
-                     , Util.ErrorHandling, Util.Logging
+                     , Util.ErrorHandling, Util.Logging, Util.FileUtil
   ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
   build-depends:       base >= 4.7 && < 5
                      , hint
