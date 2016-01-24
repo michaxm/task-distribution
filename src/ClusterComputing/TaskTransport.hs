@@ -55,7 +55,6 @@ serializeTimeDiff = toRational
 deserializeTimeDiff :: Rational -> NominalDiffTime
 deserializeTimeDiff = fromRational
 
-
 type QuerySlavePreparationRequest = (ProcessId, Int)
 data QuerySlavePreparationResponse = Prepared | Unprepared deriving (Typeable, Generic)
 instance Binary QuerySlavePreparationResponse

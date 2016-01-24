@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module ClusterComputing.TaskDistribution (
   startSlaveNode,
   executeDistributed,
@@ -6,7 +7,7 @@ module ClusterComputing.TaskDistribution (
   shutdownSlaveNodes) where
 
 import Control.Distributed.Process (Process, ProcessId, NodeId,
-                                    say, getSelfPid, spawn, send, expect, catch,
+                                    say, getSelfPid, spawn, send, expect, receiveWait, match, matchAny, catch, 
                                     RemoteTable)
 import Control.Distributed.Process.Backend.SimpleLocalnet (initializeBackend, startMaster, startSlave, terminateSlave)
 import qualified Control.Distributed.Process.Serializable as PS
@@ -19,7 +20,6 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
 import Data.ByteString.Lazy (ByteString)
-import Data.List (delete)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
@@ -45,7 +45,6 @@ import Util.Logging
 {-
  This is the final building block of the slave task execution, calling TaskSpawning.processTask.
 -}
-type TransportedResult = (TaskMetaData, Either String (TaskResult, RemoteRunStat)) -- signature here defines transported type, handle with care
 slaveTask :: TaskTransport -> Process () -- TODO: have a node local config?
 slaveTask = handleSlaveTask
 
@@ -141,13 +140,13 @@ executeOnNodes taskDef dataDefs resultDef slaveNodes = do
     then say "no slaves => no results (ports open?)" >> return [] 
     else executeOnNodes' taskDef dataDefs resultDef slaveNodes
 
-data DistributionStrategy = NextFreeNodeWithDataLocality
+data DistributionStrategy = FirstTaskWithData
 
 executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
 executeOnNodes' taskDef dataDefs resultDef slaveNodes = do
   masterProcess <- getSelfPid
   before <- liftIO getCurrentTime
-  taskResults <- distributeWork masterProcess NextFreeNodeWithDataLocality taskDef dataDefs resultDef slaveNodes 0 slaveNodes (length dataDefs) []
+  taskResults <- distributeWorkForNodes masterProcess FirstTaskWithData taskDef dataDefs resultDef slaveNodes
   after <- liftIO getCurrentTime
   say $ "total time: " ++ show (diffUTCTime after before)
   mapM_ say $ map showRunStat $ snd taskResults
@@ -169,47 +168,64 @@ showRunStat (n, totalTaskTime, remoteStat) =
     taskLoadDur = deserializeTimeDiff $ _remoteTaskLoadDuration remoteStat
     execTaskDur = deserializeTimeDiff $ _remoteExecTaskDuration remoteStat
 
--- try to allocate work until no work can be delegated to the remaining free slaves, then collect a single result, repeat
-distributeWork :: (Serializable a) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Int -> [NodeId] -> Int -> [([a], TaskRunStat)] -> Process ([a], [TaskRunStat])
--- done waiting:
-distributeWork _ _ _ _ _ _ _ _ 0 collected = do
-  say "all tasks accounted for"
-  return $ let (res, stat) = unzip collected in (concat $ reverse res, stat)
--- done distributing:
-distributeWork _ _ _ [] _ _ _ _ numWaiting collected = do
-  say $ "expecting " ++ (show numWaiting) ++ " more responses"
-  (_, nextResult) <- collectSingle
-  distributeWork undefined undefined undefined [] undefined undefined undefined undefined (numWaiting-1) (maybe collected (:collected) nextResult)
--- distribute as much as possible, otherwise collect single result and retry :
-distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef slaveNodes numBusyNodes freeNodes numWaiting collected = do
-  nodesWithData <- liftIO $ nodesWithData' dataDef
-  if null nodesWithData
-    then do
-    if numBusyNodes <= 0 then error "no slave accepts the task" else say $ "collecting since all slaves are busy"
-    (taskMetaData, nextResult) <- collectSingle
-    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef (dataDef:rest) resultDef slaveNodes (numBusyNodes-1) ((_slaveNodeId taskMetaData):freeNodes) (numWaiting-1) (maybe collected (:collected) nextResult)
-    else do
-    selectedSlave <- return (head nodesWithData)
-    spawnSlaveProcess' selectedSlave
-    say $ "spawning on: " ++ (show $ selectedSlave)
-    distributeWork masterProcess NextFreeNodeWithDataLocality taskDef rest resultDef slaveNodes (numBusyNodes+1) (delete (head nodesWithData) freeNodes) numWaiting collected
-      where
-        spawnSlaveProcess' = spawnSlaveProcess masterProcess taskDef dataDef resultDef
-        nodesWithData' (HdfsData loc) = findNodesWithData loc freeNodes
-        nodesWithData' (PseudoDB _) = return freeNodes -- no data locality strategy for simple pseudo db
+{-|
+ Tries to find work for every worker node, looking at all tasks, forgetting the node if no task is found.
 
-collectSingle :: (Serializable a) => Process (TaskMetaData, Maybe (a, TaskRunStat))
-collectSingle = do
-  (taskMetaData, nextResult) <- expect -- :: Hint: Process TransportedResult
-  now <- liftIO getCurrentTime
-  let
-    taskName = _taskName taskMetaData
-    in case nextResult of
-        (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (taskMetaData, Nothing)
-        (Right (taskResult, remoteRunStat)) -> say ("got a result for: "++taskName) >> return (taskMetaData, Just (taskResult, taskStats))
+ Note: tries to be open to other result types but assumes a list of results, as these can be concatenated over multiple tasks. Requires result entries to be serializable, not the
+  complete result - confusing this can cause devastatingly misleading compiler complaints about Serializable.
+|-}
+distributeWorkForNodes :: forall entry . (Serializable entry) => ProcessId -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process ([entry], [TaskRunStat])
+distributeWorkForNodes masterProcess strategy taskDef dataDefs resultDef allNodes = doItFor ([], 0, allNodes, dataDefs)
+  where
+    doItFor :: ([([entry], TaskRunStat)], Int, [NodeId], [DataDef]) -> Process ([entry], [TaskRunStat])
+    doItFor (collected, 0, _, []) = return $ let (res, stat) = unzip collected in (concat $ reverse res, stat) -- everything processed
+    doItFor (collected, resultsWaitingOn, freeNodes, []) = collectNextResult collected freeNodes [] resultsWaitingOn -- everything distributed, but still results to be collected
+    doItFor (collected, resultsWaitingOn, [], undistributedTasks) = collectNextResult collected [] undistributedTasks resultsWaitingOn -- no unoccupied workers, wait results to come back
+    doItFor (collected, resultsWaitingOn, freeNode:freeNodes, undistributedTasks) = do -- find a suitable task for an unoccupied nodes
+       (suitableTask, remainingTasks) <- findSuitableTask strategy
+       maybe
+         (doItFor (collected, resultsWaitingOn, freeNodes, remainingTasks)) -- no further work for this node available, discard it for distribution
+         (\t -> do -- regular distribution
+             say $ "spawning on: " ++ (show $ freeNode)
+             spawnSlaveProcess masterProcess taskDef t resultDef freeNode
+             doItFor (collected, resultsWaitingOn+1, freeNodes, remainingTasks))
+         suitableTask
+      where
+        findSuitableTask :: DistributionStrategy -> Process (Maybe DataDef, [DataDef])
+        findSuitableTask FirstTaskWithData = findSuitableTask' [] undistributedTasks
           where
-            taskStats :: TaskRunStat
-            taskStats = (taskName, diffUTCTime now (deserializeTime $ _taskDistributionStartTime taskMetaData), remoteRunStat)
+            findSuitableTask' notSuitable [] = return (Nothing, reverse notSuitable)
+            findSuitableTask' notSuitable (t:rest) = do
+              allNodesSuitableForTask <- findNodesWithData' t
+              if any (==freeNode) allNodesSuitableForTask
+                then return (Just t, reverse notSuitable ++ rest)
+                else findSuitableTask' (t:notSuitable) rest
+              where
+                findNodesWithData' (HdfsData loc) = liftIO $ findNodesWithData loc allNodes -- TODO this listing is not really efficient for this approach ...
+                findNodesWithData' (PseudoDB _) = return allNodes -- no data locality strategy for simple pseudo db
+    collectNextResult collected freeNodes undistributedTasks resultsWaitingOn = do
+      say $ "waiting for a result"
+      (taskMetaData, maybeNextResult) <- collectSingle
+      say $ "got result from: " ++ (show $ _slaveNodeId taskMetaData)
+      let updatedResults = maybe collected (:collected) maybeNextResult in -- no restarts for failed tasks for now
+       doItFor (updatedResults, resultsWaitingOn-1, _slaveNodeId taskMetaData:freeNodes, undistributedTasks)
+
+collectSingle :: forall entry . (Serializable entry) => Process (TaskMetaData, Maybe ([entry], TaskRunStat))
+collectSingle = receiveWait [
+  match $ handleTransportedResult,
+  matchAny $ \msg -> liftIO $ putStr " received unhandled  message : " >> print msg >> error "aborting due to unknown message type"
+  ]
+  where
+    handleTransportedResult (taskMetaData, nextResult) = do
+      now <- liftIO getCurrentTime
+      let
+        taskName = _taskName taskMetaData
+        in case nextResult of
+            (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (taskMetaData, Nothing)
+            (Right (taskResult, remoteRunStat)) -> say ("got a result for: "++taskName) >> return (taskMetaData, Just (taskResult, taskStats))
+              where
+                taskStats :: TaskRunStat
+                taskStats = (taskName, diffUTCTime now (deserializeTime $ _taskDistributionStartTime taskMetaData), remoteRunStat)
 
 spawnSlaveProcess :: ProcessId -> TaskDef -> DataDef -> ResultDef -> NodeId -> Process ()
 spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
@@ -239,6 +255,9 @@ spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
     prepareSlaveForTask d = return d -- nothing to prepare for other tasks (for now)
 
 -- remote logic
+
+-- task result is explicit here since post processing is dependant on that type
+type TransportedResult = (TaskMetaData, (Either String (TaskResult, RemoteRunStat)))
 
 handleSlaveTask :: TaskTransport -> Process ()
 handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDef resultDef) = do
@@ -278,6 +297,8 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
         handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix) plainResult = writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)) plainResult
         handlePlainResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
+        handleFileResult (HdfsData _) ReturnAsMessage resultFilePath = logWarn ("Reading result from file: "++resultFilePath++", with hdfs input this is probably unnecesary imperformant for larger results")
+                                                                       >> readResultFromFile resultFilePath
         handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
         handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
         handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix) resultFilePath = writeToHdfs $ copyToHdfs resultFilePath (outputPrefix++restpath) filename'
@@ -291,9 +312,7 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
           _ <- executeExternal "hdfs" ["dfs", "-mkdir", "-p", destPath]
           executeExternal "hdfs" ["dfs", "-copyFromLocal", localFile, destPath ++ "/" ++ destFilename]
         readResultFromFile :: FilePath -> IO TaskResult
-        readResultFromFile f = logWarn ("Reading result from file: "++f++", these parameters are probably unnecessarily imperformant")
-                               >> readFile f
-                               >>= parseResult
+        readResultFromFile f = readFile f >>= parseResult
 
 -- preparation negotiaion
 
