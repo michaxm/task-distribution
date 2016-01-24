@@ -41,7 +41,7 @@ usageInfo = "Syntax: master"
             ++ " <port>"
             ++ " <module:<module path>|fullbinary[-stream-input]|serializethunkdemo:<demo function>:<demo arg>|objectcodedemo>"
             ++ " <simpledata:numDBs|hdfs:<thrift server port>:<file path>[:<subdir depth>[:<filename filter prefix>]]"
-            ++ " <collectonmaster|discard|storeinhdfs:<outputprefix>>\n"
+            ++ " <collectonmaster|discard|storeinhdfs:<outputprefix>[:<outputsuffix>]>\n"
             ++ "| slave <slave host> <slave port>\n"
             ++ "| showslaves\n"
             ++ "| slaveswithhdfsdata <thrift host> <thrift port> <hdfs file path>\n"
@@ -80,7 +80,7 @@ parseMasterOpts args =
     parseResultSpec args =
       case splitOn ":" args of
        ["collectonmaster"] -> CollectOnMaster resultProcessor
-       ["storeinhdfs", outputPrefix] -> StoreInHdfs outputPrefix
+       ("storeinhdfs":outputPrefix:rest) -> StoreInHdfs outputPrefix $ if null rest then "" else head rest
        ["discard"] -> Discard
        _ -> userSyntaxError $ "unknown result specification: " ++ args
 

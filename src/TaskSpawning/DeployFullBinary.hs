@@ -1,6 +1,7 @@
 module TaskSpawning.DeployFullBinary (deployAndRunFullBinary, deployAndRunExternalBinary, fullBinaryExecution, runExternalBinary, InputMode(..)) where
 
-import qualified Data.ByteString.Char8 as BLC
+import qualified Codec.Compression.GZip as GZip
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
 import Data.Time.Clock (NominalDiffTime)
@@ -18,19 +19,19 @@ data InputMode
   | StreamInput
   deriving (Read, Show)
 
-deployAndRunFullBinary :: InputMode -> String -> BL.ByteString -> TaskInput -> IO (FilePath, NominalDiffTime, NominalDiffTime)
+deployAndRunFullBinary :: InputMode -> String -> BL.ByteString -> TaskInput -> Bool -> IO (FilePath, NominalDiffTime, NominalDiffTime)
 deployAndRunFullBinary inputMode mainArg = deployAndRunExternalBinary inputMode [mainArg]
 
-deployAndRunExternalBinary :: InputMode -> [String] -> BL.ByteString -> TaskInput -> IO (FilePath, NominalDiffTime, NominalDiffTime)
-deployAndRunExternalBinary inputMode programBaseArgs program taskInput = do
-  ((res, execDur), totalDur) <- measureDuration $ withTempBLFile "distributed-program" program $ runExternalBinary inputMode programBaseArgs taskInput
+deployAndRunExternalBinary :: InputMode -> [String] -> BL.ByteString -> TaskInput -> Bool -> IO (FilePath, NominalDiffTime, NominalDiffTime)
+deployAndRunExternalBinary inputMode programBaseArgs program taskInput zipIntermediate = do
+  ((res, execDur), totalDur) <- measureDuration $ withTempBLFile "distributed-program" program $ runExternalBinary inputMode zipIntermediate programBaseArgs taskInput
   return (res, (totalDur - execDur), execDur)
 
-runExternalBinary :: InputMode -> [String] -> TaskInput -> FilePath -> IO (FilePath, NominalDiffTime)
-runExternalBinary inputMode programBaseArgs taskInput filePath = do
+runExternalBinary :: InputMode -> Bool -> [String] -> TaskInput -> FilePath -> IO (FilePath, NominalDiffTime)
+runExternalBinary inputMode zipIntermediate programBaseArgs taskInput filePath = do
   readProcessWithExitCode "chmod" ["+x", filePath] "" >>= expectSilentSuccess
   putStrLn $ "running " ++ filePath ++ "... "
-  ((executionOutput, outFilePath), execDur) <- measureDuration $ runExternalBinaryForInputMode inputMode (programBaseArgs++[show inputMode]) taskInput filePath
+  ((executionOutput, outFilePath), execDur) <- measureDuration $ runExternalBinaryForInputMode inputMode (programBaseArgs++[show inputMode, show zipIntermediate]) taskInput filePath
   putStrLn $ "... run completed" -- TODO trace logging ++ (show executionOutput)
   stdOut <- expectSuccess executionOutput
   logDebug stdOut
@@ -50,8 +51,8 @@ runExternalBinaryForInputMode StreamInput programBaseArgs taskInput filePath = d
   res <- executeExternalWritingToStdIn filePath (programBaseArgs ++ ["", taskOutputFilePath]) taskInput
   return (res, taskOutputFilePath)
 
-fullBinaryExecution :: InputMode -> (TaskInput -> TaskResult) -> FilePath -> FilePath -> IO ()
-fullBinaryExecution inputMode function taskInputFilePath taskOutputFilePath = do
+fullBinaryExecution :: InputMode -> (TaskInput -> TaskResult) -> FilePath -> FilePath -> Bool -> IO ()
+fullBinaryExecution inputMode function taskInputFilePath taskOutputFilePath zipIntermediate = do
   --TODO real logging: may not be written to stdout, since that is what we consume as result
   logDebug $ "reading data from: " ++ taskInputFilePath
   taskInput <- getInput inputMode
@@ -59,7 +60,9 @@ fullBinaryExecution inputMode function taskInputFilePath taskOutputFilePath = do
   logDebug $ "calculating result"
   result <- return $ function taskInput
   logDebug $ "printing result"
-  writeFile taskOutputFilePath $ concat $ intersperse "\n" result
+  let output = BLC.pack $ concat $ intersperse "\n" result
+    in let fileOutput = if zipIntermediate then GZip.compress output else output
+       in BL.writeFile taskOutputFilePath fileOutput
   where
     getInput FileInput = do
       fileContents <- BLC.readFile taskInputFilePath

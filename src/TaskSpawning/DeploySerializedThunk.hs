@@ -14,7 +14,7 @@ import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generali
 
  The execution does not include error handling, this should be done on master/client.
 -}
-deployAndRunSerializedThunk :: String -> BL.ByteString -> BL.ByteString -> TaskInput -> IO (FilePath, NominalDiffTime, NominalDiffTime)
+deployAndRunSerializedThunk :: String -> BL.ByteString -> BL.ByteString -> TaskInput -> Bool -> IO (FilePath, NominalDiffTime, NominalDiffTime)
 deployAndRunSerializedThunk mainArg taskFunction =
   -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
   deployAndRunExternalBinary FileInput [mainArg, show taskFunction]
@@ -28,5 +28,5 @@ deployAndRunSerializedThunk mainArg taskFunction =
 acceptAndExecuteSerializedThunk :: BL.ByteString -> IO (TaskInput -> TaskResult)
 acceptAndExecuteSerializedThunk taskFn = (deserializeFunction taskFn :: IO (TaskInput -> TaskResult)) >>= (\f -> return (take 10 . f))
 
-serializedThunkExecution :: (TaskInput -> TaskResult) -> FilePath -> FilePath -> IO ()
+serializedThunkExecution :: (TaskInput -> TaskResult) -> FilePath -> FilePath -> Bool -> IO ()
 serializedThunkExecution = fullBinaryExecution FileInput -- nothing different at this point, streaming not implemented here

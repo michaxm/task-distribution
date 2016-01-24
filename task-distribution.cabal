@@ -48,6 +48,7 @@ library
                      , time
                      , hashable
                      , deepseq
+                     , zlib
   default-language:    Haskell2010
 
 executable example

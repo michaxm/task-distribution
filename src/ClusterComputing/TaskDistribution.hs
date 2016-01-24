@@ -265,7 +265,7 @@ handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDef result
     do
       acceptTime <- liftIO getCurrentTime
       say $ "processing: " ++ taskName
-      result <- liftIO (processTask taskDef dataDef)
+      result <- liftIO (processTask taskDef dataDef resultDef)
       say $ "processing done for: " ++ taskName
       processingDoneTime <- liftIO getCurrentTime
       liftIO (handleSlaveResult dataDef resultDef result acceptTime processingDoneTime) >>= return . Right
@@ -294,16 +294,16 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
       (Left resultFilePath) -> handleFileResult dataDef resultDef resultFilePath
       where
         handlePlainResult _ ReturnAsMessage plainResult = return plainResult
-        handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix) plainResult = writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)) plainResult
-        handlePlainResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
+        handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix outputSuffix) plainResult = writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)++outputSuffix) plainResult
+        handlePlainResult _ (HdfsResult _ _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
         handleFileResult (HdfsData _) ReturnAsMessage resultFilePath = logWarn ("Reading result from file: "++resultFilePath++", with hdfs input this is probably unnecesary imperformant for larger results")
                                                                        >> readResultFromFile resultFilePath
         handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
         handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
-        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix) resultFilePath = writeToHdfs $ copyToHdfs resultFilePath (outputPrefix++restpath) filename'
+        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix outputSuffix) resultFilePath = writeToHdfs $ copyToHdfs resultFilePath (outputPrefix++restpath) (filename'++outputSuffix)
           where (restpath, filename') = splitBasePath (stripHDFSPartOfPath path)
-        handleFileResult _ (HdfsResult _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
+        handleFileResult _ (HdfsResult _ _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         writeToHdfs writeAction = do
           (_, storeDur) <- measureDuration $ writeAction
           putStrLn $ "stored result data in: " ++ (show storeDur)

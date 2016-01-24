@@ -17,7 +17,7 @@ module TaskSpawning.ExecutionUtil (
 
 import Control.Exception.Base (bracket, catch)
 -- FIXME really lazy? rather use strict???
-import qualified Data.ByteString.Char8 as BLC
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
 import Data.Time.Clock (diffUTCTime, NominalDiffTime, getCurrentTime)

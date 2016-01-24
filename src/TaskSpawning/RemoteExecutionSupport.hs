@@ -16,9 +16,9 @@ withFullBinaryRemoteExecutionSupport :: (TaskInput -> TaskResult) -> IO () -> IO
 withFullBinaryRemoteExecutionSupport fn mainAction = do
   args <- getArgs
   case args of
-   [mode, inputMode, taskInputFilePath, taskOutputFilePath] ->
+   [mode, inputMode, zipIntermediate, taskInputFilePath, taskOutputFilePath] ->
      if mode == executeFullBinaryArg
-     then executionWithinSlaveProcessForFullBinaryDeployment (read inputMode) fn taskInputFilePath taskOutputFilePath
+     then executionWithinSlaveProcessForFullBinaryDeployment (read inputMode) fn taskInputFilePath taskOutputFilePath (read zipIntermediate)
      else mainAction
    _ -> mainAction
 
@@ -26,5 +26,8 @@ withSerializedThunkRemoteExecutionSupport :: IO () -> IO ()
 withSerializedThunkRemoteExecutionSupport mainAction = do
   args <- getArgs
   case args of
-   [mode, taskFn, taskInputFilePath, taskOutputFilePath] -> if mode == executeSerializedThunkArg then executionWithinSlaveProcessForThunkSerialization taskFn taskInputFilePath taskOutputFilePath else mainAction
+   [mode, zipIntermediate, taskFn, taskInputFilePath, taskOutputFilePath] ->
+     if mode == executeSerializedThunkArg
+     then executionWithinSlaveProcessForThunkSerialization taskFn taskInputFilePath taskOutputFilePath (read zipIntermediate)
+     else mainAction
    _ -> mainAction
