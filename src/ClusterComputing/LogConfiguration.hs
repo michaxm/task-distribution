@@ -27,4 +27,4 @@ initDefaultLogging suffix = do
 --  progName <- getExecutablePath
   initLogging L.WARNING L.INFO logfile --TODO logging relative to $CLUSTER_COMPUTING_HOME
     where
-      logfile = ("log/cluster-computing" ++ (if null suffix then "" else "-"++suffix) ++".log")
+      logfile = ("log/task-distribution" ++ (if null suffix then "" else "-"++suffix) ++".log")
