@@ -8,16 +8,20 @@ import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.MVar
 import Control.DeepSeq (rnf)
 import Control.Exception.Base
-import System.Exit (ExitCode(..))
+import Data.List (intersperse)
 import System.FilePath ()
 import System.IO (Handle, hClose, hGetContents, hPutStrLn)
 import System.Process
 
+import TaskSpawning.ExecutionUtil (expectSuccess)
 import Types.TaskTypes
+import Util.Logging
 
-executeExternalWritingToStdIn :: FilePath -> [String] -> TaskInput -> IO (ExitCode, String, String)
-executeExternalWritingToStdIn progName progArgs taskInput =
-  withCreateProcess_ (processOptions progName progArgs) handleProcess
+executeExternalWritingToStdIn :: FilePath -> [String] -> TaskInput -> IO String
+executeExternalWritingToStdIn progName progArgs taskInput = do
+  logInfo $ "executing: " ++ progName ++ " " ++ (concat $ intersperse " " progArgs)
+  result <- withCreateProcess_ (processOptions progName progArgs) handleProcess
+  expectSuccess result
   where
     handleProcess (Just stdin) (Just stdout) _ processHandle = do
       output  <- hGetContents stdout -- forks?

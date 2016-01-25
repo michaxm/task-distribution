@@ -44,7 +44,7 @@ processTask taskDef dataDef resultDef = do
   logDebug $ "returning result for " ++ (describe dataDef)
   return (result, (loadingDataDuration, loadingTaskDuration, executionDuration))
 
-applyTaskLogic :: TaskDef -> TaskInput -> Bool -> IO (Either FilePath TaskResult, NominalDiffTime, NominalDiffTime)
+applyTaskLogic :: TaskDef -> TaskInput -> DFB.ZipOutput -> IO (Either FilePath TaskResult, NominalDiffTime, NominalDiffTime)
 applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput _ = do
   putStrLn "compiling task from source code"
   (taskFn, loadTaskDuration) <- measureDuration $ loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
@@ -52,13 +52,15 @@ applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput _ = do
   (result, execDuration) <- measureDuration $ return $ taskFn taskInput
   return (result, loadTaskDuration, execDuration) >>= return . (onFirst Right)
 -- Full binary deployment step 2/3: run within slave process to deploy the distributed task binary
-applyTaskLogic (DeployFullBinary program inputMode) taskInput zipIntermediate = DFB.deployAndRunFullBinary (convertInputMode inputMode) executeFullBinaryArg program taskInput zipIntermediate >>= return . (onFirst Left)
-applyTaskLogic (PreparedDeployFullBinary hash inputMode) taskInput zipIntermediate = do
+applyTaskLogic (DeployFullBinary program inputMode) taskInput zipOutput = DFB.deployAndRunFullBinary (DFB.DataModes (convertInputMode inputMode) (DFB.FileOutput zipOutput)) executeFullBinaryArg program taskInput
+                                                                          >>= return . (onFirst Left)
+applyTaskLogic (PreparedDeployFullBinary hash inputMode) taskInput zipOutput = do
   ((Just filePath), taskLoadDur) <- measureDuration $ RemoteStore.get hash --TODO catch unknown binary error nicer
-  (res, execDur) <- DFB.runExternalBinary (convertInputMode inputMode) zipIntermediate [executeFullBinaryArg] taskInput filePath
+  (res, execDur) <- DFB.runExternalBinary (DFB.DataModes (convertInputMode inputMode) (DFB.FileOutput zipOutput)) [executeFullBinaryArg] taskInput filePath
   return (res, taskLoadDur, execDur) >>= return . (onFirst Left)
 -- Serialized thunk deployment step 2/3: run within slave process to deploy the distributed task binary
-applyTaskLogic (UnevaluatedThunk function program) taskInput zipIntermediate = DST.deployAndRunSerializedThunk executeSerializedThunkArg function program taskInput zipIntermediate >>= return . (onFirst Left)
+applyTaskLogic (UnevaluatedThunk function program) taskInput zipOutput = DST.deployAndRunSerializedThunk executeSerializedThunkArg function zipOutput program taskInput
+                                                                         >>= return . (onFirst Left)
 -- Partial binary deployment step 2/2: receive distribution on slave, prepare input data, link object file and spawn slave process, read its output
 applyTaskLogic (ObjectCodeModule objectCode) taskInput _ = DOC.codeExecutionOnSlave objectCode taskInput >>= return . (onFirst Right) -- TODO switch to location ("Left")
 
@@ -88,18 +90,18 @@ serializedThunkSerializationOnMaster programPath function = do
   return $ UnevaluatedThunk taskFn program
 
 -- Full binary deployment step 3/3: run within the spawned process for the distributed executable, applies data to distributed task.
-executionWithinSlaveProcessForFullBinaryDeployment :: DFB.InputMode -> (TaskInput -> TaskResult) -> FilePath -> FilePath -> Bool -> IO ()
+executionWithinSlaveProcessForFullBinaryDeployment :: DFB.DataModes -> (TaskInput -> TaskResult) -> FilePath -> FilePath -> IO ()
 executionWithinSlaveProcessForFullBinaryDeployment = DFB.fullBinaryExecution
 
 -- Serialized thunk deployment step 3/3: run within the spawned process for the distributed executable, applies data to distributed task.
-executionWithinSlaveProcessForThunkSerialization :: String -> FilePath -> FilePath -> Bool -> IO ()
-executionWithinSlaveProcessForThunkSerialization taskFnArg taskInputFilePath taskOutputFilePath zipIntermediate = do
+executionWithinSlaveProcessForThunkSerialization :: DFB.DataModes -> String -> FilePath -> FilePath -> IO ()
+executionWithinSlaveProcessForThunkSerialization dataModes taskFnArg taskInputFilePath taskOutputFilePath = do
   taskFn <- withErrorAction logError ("Could not read task logic: " ++(show taskFnArg)) $ return $ (read taskFnArg :: BL.ByteString)
   logInfo "slave: deserializing task logic"
   logDebug $ "slave: got this task function: " ++ (show taskFn)
   function <- deserializeFunction taskFn :: IO (TaskInput -> TaskResult)
   serializeFunction function >>= \s -> logDebug $ "task deserialization done for: " ++ (show $ BL.unpack s)
-  DST.serializedThunkExecution function taskInputFilePath taskOutputFilePath zipIntermediate
+  DST.serializedThunkExecution dataModes function taskInputFilePath taskOutputFilePath
 
 -- Partial binary deployment step 1/2: start distribution of task on master
 objectCodeSerializationOnMaster :: IO TaskDef
