@@ -6,11 +6,11 @@ import System.HDFS.HDFSClient
 import Types.TaskTypes (TaskInput)
 import Types.HdfsConfigTypes (HdfsLocation)
 import Util.ErrorHandling
+import Util.Logging
 
 loadEntries :: HdfsLocation -> IO TaskInput
-loadEntries hdfsLocation =
-  putStrLn targetDescription >>
-  withErrorPrefix ("Error accessing "++ targetDescription) (uncurry hdfsReadCompleteFile hdfsLocation) >>=
-  return . lines . TL.unpack
+loadEntries hdfsLocation = do
+  logInfo $ "loading: " ++ targetDescription
+  withErrorPrefix ("Error accessing "++ targetDescription) (uncurry hdfsReadCompleteFile hdfsLocation) >>= return . lines . TL.unpack
   where
     targetDescription = show hdfsLocation

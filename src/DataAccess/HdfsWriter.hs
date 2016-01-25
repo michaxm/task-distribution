@@ -15,7 +15,6 @@ import Util.Logging
 writeEntriesToHdfs :: Bool -> HdfsConfig -> String -> TaskResult -> IO ()
 writeEntriesToHdfs _ config path entries = do
   logInfo $ "writing to HDFS: " ++ path
-  logInfo $ show entries
   withErrorPrefix ("Error writing to "++path) $ writeToHdfsCreatingDirs
   logInfo $ "writing to HDFS complete"
   where
