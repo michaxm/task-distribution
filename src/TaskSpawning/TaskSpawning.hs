@@ -1,15 +1,17 @@
 module TaskSpawning.TaskSpawning (
-  processTask, RunStat,
+  processTask, RunStat, TaskResultWrapper(..),
   fullBinarySerializationOnMaster, executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment,
   serializedThunkSerializationOnMaster, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization,
   objectCodeSerializationOnMaster) where
 
 import qualified Data.ByteString.Lazy as BL
+import Data.List (isSuffixOf)
 import Data.Time.Clock (NominalDiffTime)
 import qualified Language.Haskell.Interpreter as I
 
 import qualified DataAccess.SimpleDataSource as SDS
 import qualified DataAccess.HdfsDataSource as HDS
+import qualified DataAccess.HdfsWriter as HDFS
 
 import qualified TaskSpawning.BinaryStorage as RemoteStore
 import qualified TaskSpawning.DeployFullBinary as DFB
@@ -28,6 +30,7 @@ executeFullBinaryArg, executeSerializedThunkArg :: String
 executeFullBinaryArg = "executefullbinary"
 executeSerializedThunkArg = "executeserializedthunk"
 
+data TaskResultWrapper = DirectResult TaskResult | ReadFromFile FilePath | Empty
 type RunStat = (NominalDiffTime, NominalDiffTime, NominalDiffTime)
 
 {-|
@@ -35,38 +38,58 @@ type RunStat = (NominalDiffTime, NominalDiffTime, NominalDiffTime)
   Which of those depends on the distribution type, when external programs are spawned the former can be more efficient,
   but if there is no such intermediate step, a direct result is better.
 |-}
-processTask :: TaskDef -> DataDef -> ResultDef -> IO (Either FilePath TaskResult, RunStat)
+processTask :: TaskDef -> DataDef -> ResultDef -> IO (TaskResultWrapper, RunStat)
 processTask taskDef dataDef resultDef = do
   logDebug $ "loading data for" ++ (describe dataDef)
   (taskInput, loadingDataDuration) <- measureDuration $ loadData dataDef
   logDebug $ "applying data to task: " ++ (describe taskDef)
-  (result, loadingTaskDuration, executionDuration)  <- applyTaskLogic taskDef taskInput (shouldZipIntermediate resultDef)
+  (result, loadingTaskDuration, executionDuration)  <- applyTaskLogic taskDef taskInput dataDef resultDef
   logDebug $ "returning result for " ++ (describe dataDef)
   return (result, (loadingDataDuration, loadingTaskDuration, executionDuration))
 
-applyTaskLogic :: TaskDef -> TaskInput -> DFB.ZipOutput -> IO (Either FilePath TaskResult, NominalDiffTime, NominalDiffTime)
-applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput _ = do
+applyTaskLogic :: TaskDef -> TaskInput -> DataDef -> ResultDef -> IO (TaskResultWrapper, NominalDiffTime, NominalDiffTime)
+applyTaskLogic (SourceCodeModule moduleName moduleContent) taskInput _ _ = do
   putStrLn "compiling task from source code"
   (taskFn, loadTaskDuration) <- measureDuration $ loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
   putStrLn "applying data"
   (result, execDuration) <- measureDuration $ return $ taskFn taskInput
-  return (result, loadTaskDuration, execDuration) >>= return . (onFirst Right)
+  return (result, loadTaskDuration, execDuration) >>= return . (onFirst DirectResult)
 -- Full binary deployment step 2/3: run within slave process to deploy the distributed task binary
-applyTaskLogic (DeployFullBinary program inputMode) taskInput zipOutput = DFB.deployAndRunFullBinary (DFB.DataModes (convertInputMode inputMode) (DFB.FileOutput zipOutput)) executeFullBinaryArg program taskInput
-                                                                          >>= return . (onFirst Left)
-applyTaskLogic (PreparedDeployFullBinary hash inputMode) taskInput zipOutput = do
+applyTaskLogic (DeployFullBinary program inputMode) taskInput dataDef resultDef = DFB.deployAndRunFullBinary dataModes executeFullBinaryArg program taskInput >>= return . onFirst resultApplier
+  where
+    (dataModes, resultApplier) = buildDataModes inputMode resultDef dataDef
+applyTaskLogic (PreparedDeployFullBinary hash inputMode) taskInput dataDef resultDef = do
   ((Just filePath), taskLoadDur) <- measureDuration $ RemoteStore.get hash --TODO catch unknown binary error nicer
-  (res, execDur) <- DFB.runExternalBinary (DFB.DataModes (convertInputMode inputMode) (DFB.FileOutput zipOutput)) [executeFullBinaryArg] taskInput filePath
-  return (res, taskLoadDur, execDur) >>= return . (onFirst Left)
+  (res, execDur) <- DFB.runExternalBinary dataModes [executeFullBinaryArg] taskInput filePath
+  return (res, taskLoadDur, execDur) >>= return . (onFirst resultApplier)
+  where
+    (dataModes, resultApplier) = buildDataModes inputMode resultDef dataDef
 -- Serialized thunk deployment step 2/3: run within slave process to deploy the distributed task binary
-applyTaskLogic (UnevaluatedThunk function program) taskInput zipOutput = DST.deployAndRunSerializedThunk executeSerializedThunkArg function zipOutput program taskInput
-                                                                         >>= return . (onFirst Left)
+applyTaskLogic (UnevaluatedThunk function program) taskInput _ resultDef = DST.deployAndRunSerializedThunk executeSerializedThunkArg function (shouldZipOutput resultDef) program taskInput
+                                                                         >>= return . (onFirst ReadFromFile)
 -- Partial binary deployment step 2/2: receive distribution on slave, prepare input data, link object file and spawn slave process, read its output
-applyTaskLogic (ObjectCodeModule objectCode) taskInput _ = DOC.codeExecutionOnSlave objectCode taskInput >>= return . (onFirst Right) -- TODO switch to location ("Left")
+applyTaskLogic (ObjectCodeModule objectCode) taskInput _ _ = DOC.codeExecutionOnSlave objectCode taskInput >>= return . (onFirst DirectResult) -- TODO switch to location ("Left")
 
-convertInputMode :: TaskInputMode -> DFB.InputMode
-convertInputMode FileInput = DFB.FileInput
-convertInputMode StreamInput = DFB.StreamInput
+buildDataModes :: TaskInputMode-> ResultDef -> DataDef -> (DFB.DataModes, FilePath -> TaskResultWrapper)
+buildDataModes inputMode resultDef dataDef =
+  (DFB.DataModes (convertInputMode inputMode) outputMode,
+   if isHdfsOutput then (\_ -> Empty) else ReadFromFile)
+  where
+    isHdfsOutput = case outputMode of (DFB.HdfsOutput _ _) -> True; _ -> False
+    outputMode = mkOutputMode resultDef dataDef
+    mkOutputMode (HdfsResult outputPrefix outputSuffix) (HdfsData (config, path)) =
+      DFB.HdfsOutput (config, (outputPrefix ++ "/" ++ (HDFS.stripHDFSPartOfPath path)++outputSuffix)) (isZippedSuffix outputSuffix)
+    mkOutputMode _ _ = (DFB.FileOutput False)
+    convertInputMode :: TaskInputMode -> DFB.InputMode
+    convertInputMode FileInput = DFB.FileInput
+    convertInputMode StreamInput = DFB.StreamInput
+
+shouldZipOutput :: ResultDef -> Bool
+shouldZipOutput (HdfsResult _ s) = isZippedSuffix s
+shouldZipOutput _ = False
+
+isZippedSuffix :: FilePath -> Bool
+isZippedSuffix = isSuffixOf ".gz"
 
 onFirst :: (a -> a') -> (a, b, c) -> (a', b, c)
 onFirst f (a, b, c) = (f a, b, c)

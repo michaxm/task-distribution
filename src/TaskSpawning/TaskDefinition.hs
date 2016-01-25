@@ -4,7 +4,6 @@ module TaskSpawning.TaskDefinition where
 import Control.Distributed.Process.Serializable (Serializable)
 import Data.Binary (Binary)
 import Data.ByteString.Lazy (ByteString)
-import Data.List (isSuffixOf)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 
@@ -80,7 +79,3 @@ data ResultDef
  deriving (Typeable, Generic)
 instance Binary ResultDef
 instance Serializable ResultDef
-
-shouldZipIntermediate :: ResultDef -> Bool
-shouldZipIntermediate (HdfsResult _ s) = ".gz" `isSuffixOf` s
-shouldZipIntermediate _ = False

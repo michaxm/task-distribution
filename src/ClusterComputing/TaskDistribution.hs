@@ -20,18 +20,19 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
 import Data.ByteString.Lazy (ByteString)
+import Data.List (isSuffixOf)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
 import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
-import DataAccess.HdfsWriter (writeEntriesToFile, stripHDFSPartOfPath)
+import DataAccess.HdfsWriter (writeEntriesToHdfs, stripHDFSPartOfPath)
 import qualified TaskSpawning.BinaryStorage as RemoteStore
 import TaskSpawning.TaskDefinition
 import TaskSpawning.TaskDescription
 import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResult)
-import TaskSpawning.TaskSpawning (processTask, RunStat)
+import TaskSpawning.TaskSpawning (processTask, RunStat, TaskResultWrapper(..))
 import Types.TaskTypes
 import Util.FileUtil
 import Util.Logging
@@ -281,7 +282,7 @@ handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDef result
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
 
-handleSlaveResult :: DataDef -> ResultDef -> (Either FilePath TaskResult, RunStat) -> UTCTime -> UTCTime -> IO (TaskResult, RemoteRunStat)
+handleSlaveResult :: DataDef -> ResultDef -> (TaskResultWrapper, RunStat) -> UTCTime -> UTCTime -> IO (TaskResult, RemoteRunStat)
 handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingDoneTime = do
   res <- handleResult
   return (res, serializedRunStat runStat)
@@ -290,21 +291,25 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
       RemoteRunStat (serializeTimeDiff $ diffUTCTime processingDoneTime acceptTime) (serializeTimeDiff d) (serializeTimeDiff t) (serializeTimeDiff e)
     handleResult :: IO TaskResult
     handleResult = case taskResult of
-      (Right plainResult) -> handlePlainResult dataDef resultDef plainResult
-      (Left resultFilePath) -> handleFileResult dataDef resultDef resultFilePath
+      (DirectResult plainResult) -> handlePlainResult dataDef resultDef plainResult
+      (ReadFromFile resultFilePath) -> handleFileResult dataDef resultDef resultFilePath
+      Empty -> return []
       where
         handlePlainResult _ ReturnAsMessage plainResult = return plainResult
-        handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix outputSuffix) plainResult = writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)++outputSuffix) plainResult
+        handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix outputSuffix) plainResult = wrapHdfsAction $ writeEntriesToHdfs zipOutput config outputPath plainResult
+          where
+            zipOutput = ".gz" `isSuffixOf` outputSuffix
+            outputPath = outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)++outputSuffix
         handlePlainResult _ (HdfsResult _ _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
         handleFileResult (HdfsData _) ReturnAsMessage resultFilePath = logWarn ("Reading result from file: "++resultFilePath++", with hdfs input this is probably unnecesary imperformant for larger results")
                                                                        >> readResultFromFile resultFilePath
         handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
         handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
-        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix outputSuffix) resultFilePath = writeToHdfs $ copyToHdfs resultFilePath (outputPrefix++restpath) (filename'++outputSuffix)
+        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix outputSuffix) resultFilePath = wrapHdfsAction $ copyToHdfs resultFilePath (outputPrefix++restpath) (filename'++outputSuffix)
           where (restpath, filename') = splitBasePath (stripHDFSPartOfPath path)
         handleFileResult _ (HdfsResult _ _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
-        writeToHdfs writeAction = do
+        wrapHdfsAction writeAction = do
           (_, storeDur) <- measureDuration $ writeAction
           putStrLn $ "stored result data in: " ++ (show storeDur)
           return []

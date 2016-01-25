@@ -2,6 +2,6 @@
 */#*#
 *_flymake.hs
 .stack-work
-log/task-distribution*.log
+log/*.log
 tmp
 dist

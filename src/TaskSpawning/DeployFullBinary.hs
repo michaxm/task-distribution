@@ -11,8 +11,10 @@ import Data.Time.Clock (NominalDiffTime)
 import System.FilePath ()
 import System.Process (readProcessWithExitCode)
 
+import DataAccess.HdfsWriter (writeEntriesToHdfs)
 import TaskSpawning.ExecutionUtil
 import TaskSpawning.StreamToExecutableUtil
+import Types.HdfsConfigTypes
 import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
 import Util.Logging
 
@@ -25,11 +27,13 @@ data InputMode
 
 data OutputMode
   = FileOutput ZipOutput
+  | HdfsOutput HdfsLocation ZipOutput
+    --writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)++outputSuffix)
 
 packDataModes :: DataModes -> String
-packDataModes (DataModes inputMode outputMode) = (packInputMode inputMode)++":"++(packOutputMode outputMode)
+packDataModes (DataModes inputMode outputMode) = (packInputMode inputMode)++"|"++(packOutputMode outputMode)
 unpackDataModes :: String -> DataModes
-unpackDataModes s = let es = splitOn ":" s
+unpackDataModes s = let es = splitOn "|" s
                     in if (length es) /= 2
                        then error $ "unknown value: " ++ s
                        else DataModes (unpackInputMode $ es !! 0) (unpackOutputMode $ es !! 1)
@@ -42,11 +46,18 @@ unpackInputMode "FileInput" = FileInput
 unpackInputMode "StreamInput" = StreamInput
 unpackInputMode s = error $ "unknown value: " ++ s
 packOutputMode :: OutputMode -> String
-packOutputMode (FileOutput z) = "FileOutput" ++ (if z then "-zipped" else "")
+packOutputMode (FileOutput z) = "FileOutput" ++ (if z then ":zipped" else "")
+packOutputMode (HdfsOutput ((h, p), l) z) = "HdfsOutput:"++(if z then "zipped:" else "")++h++":"++(show p)++":"++l
 unpackOutputMode :: String -> OutputMode
 unpackOutputMode "FileOutput" = FileOutput False
-unpackOutputMode "FileOutput-zipped" = FileOutput True
-unpackOutputMode s = error $ "unknown value: " ++ s
+unpackOutputMode "FileOutput:zipped" = FileOutput True
+unpackOutputMode s = let es = splitOn ":" s
+                     in case es of
+                     ["FileOutput"] -> FileOutput False
+                     ["FileOutput", "zipped"] -> FileOutput True
+                     ["HdfsOutput", h, p, l] -> HdfsOutput ((h, (read p)), l) False
+                     ["HdfsOutput", "zipped", h, p, l] -> HdfsOutput ((h, (read p)), l) True
+                     _ -> error $ "unknown value: " ++ s
 
 type ZipOutput = Bool
 
@@ -59,16 +70,16 @@ deployAndRunExternalBinary dataModes programBaseArgs program taskInput = do
   return (res, (totalDur - execDur), execDur)
 
 runExternalBinary :: DataModes -> [String] -> TaskInput -> FilePath -> IO (FilePath, NominalDiffTime)
-runExternalBinary dataModes@(DataModes inputMode outputMode) programBaseArgs taskInput filePath = do
+runExternalBinary dataModes@(DataModes inputMode _) programBaseArgs taskInput filePath = do
   readProcessWithExitCode "chmod" ["+x", filePath] "" >>= expectSilentSuccess
   putStrLn $ "running " ++ filePath ++ "... "
-  ((stdOut, outFilePath), execDur) <- measureDuration $ runExternalBinaryForMode inputMode outputMode (programBaseArgs++[packDataModes dataModes]) taskInput filePath
+  ((stdOut, outFilePath), execDur) <- measureDuration $ runExternalBinaryForInputMode inputMode (programBaseArgs++[packDataModes dataModes]) taskInput filePath
   putStrLn $ "... run completed"
   logDebug stdOut
   return (outFilePath, execDur)
 
-runExternalBinaryForMode :: InputMode -> OutputMode -> [String] -> TaskInput -> FilePath -> IO (String, FilePath)
-runExternalBinaryForMode FileInput (FileOutput _) programBaseArgs taskInput filePath = do
+runExternalBinaryForInputMode :: InputMode -> [String] -> TaskInput -> FilePath -> IO (String, FilePath)
+runExternalBinaryForInputMode FileInput programBaseArgs taskInput filePath = do
   withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) (
     \taskInputFilePath -> do
       taskOutputFilePath <- return $ taskInputFilePath ++ ".out"
@@ -76,26 +87,28 @@ runExternalBinaryForMode FileInput (FileOutput _) programBaseArgs taskInput file
       processOutput <- executeExternal filePath (programBaseArgs ++ [taskInputFilePath, taskOutputFilePath])
       return (processOutput, taskOutputFilePath)
     )
-runExternalBinaryForMode StreamInput (FileOutput _) programBaseArgs taskInput filePath = do
+runExternalBinaryForInputMode StreamInput programBaseArgs taskInput filePath = do
   taskOutputFilePath <- createTempFilePath "distributed-program-task.out"
   res <- executeExternalWritingToStdIn filePath (programBaseArgs ++ ["", taskOutputFilePath]) taskInput
   return (res, taskOutputFilePath)
 
+{-|
+ Some methods parse the contents of stdout, thus these will fail in the case of logging to it (only ERROR at the moment).
+|-}
 fullBinaryExecution :: DataModes -> (TaskInput -> TaskResult) -> FilePath -> FilePath ->  IO ()
-fullBinaryExecution (DataModes inputMode (FileOutput zipOutput)) function taskInputFilePath taskOutputFilePath = do
-  --TODO real logging: may not be written to stdout, since that is what we consume as result
+fullBinaryExecution (DataModes inputMode outputMode) function taskInputFilePath taskOutputFilePath = do
   logDebug $ "reading data from: " ++ taskInputFilePath
   taskInput <- getInput inputMode
   logTrace $ show $ taskInput
   logDebug $ "calculating result"
   result <- return $ function taskInput
-  logDebug $ "printing result"
-  let output = BLC.pack $ concat $ intersperse "\n" result
-    in let fileOutput = if zipOutput then GZip.compress output else output
-       in BL.writeFile taskOutputFilePath fileOutput
+  logTrace $ "printing result: " ++ show result
+  writeData outputMode result
   where
     getInput FileInput = do
       fileContents <- BLC.readFile taskInputFilePath
       logTrace $ show fileContents
       deserializeTaskInput fileContents
     getInput StreamInput = readStdTillEOF
+    writeData (FileOutput z) = (>> logInfo ("wrote result to file: "++taskOutputFilePath)) . BL.writeFile taskOutputFilePath . (if z then GZip.compress else id) . BLC.pack . concat . intersperse "\n"
+    writeData (HdfsOutput l z) = uncurry (writeEntriesToHdfs z) l
