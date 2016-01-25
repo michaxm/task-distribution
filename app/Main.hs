@@ -25,10 +25,11 @@ main = withRemoteExecutionSupport calculateVisits $ do
    ("master" : masterArgs) -> runMaster (parseMasterOpts masterArgs)
    ["slave", slaveHost, slavePort] -> startSlaveNode (slaveHost, (read slavePort))
    ["showslaves"] -> showSlaveNodes localConfig
-   ["slaveswithhdfsdata", host, port, hdfsFilePath] -> showSlaveNodesWithData localConfig (host, read port) hdfsFilePath
+   ["slaveswithhdfsdata", host, port, hdfsFilePath] -> showSlaveNodesWithData (host, read port) hdfsFilePath
    ["shutdown"] -> shutdownSlaveNodes localConfig
    _ -> userSyntaxError "unknown mode"
 
+-- note: assumes no nodes with that configuration, should be read as parameters
 localConfig :: HdfsConfig
 localConfig = ("localhost", 44440)
 

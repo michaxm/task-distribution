@@ -55,7 +55,7 @@ instance Serializable TaskInputMode
 -}
 data DataDef
   = HdfsData {
-    _hdfsInputLocation :: HdfsLocation
+    _hdfsInputPath :: HdfsPath
     }
   | PseudoDB {
     _numDB :: Int

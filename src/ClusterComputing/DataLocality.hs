@@ -11,13 +11,15 @@ import Data.Ord (comparing)
 import Prelude hiding (log)
 import System.HDFS.HDFSClient
 
+import Control.Distributed.Task.Util.Configuration
 import Util.Logging
 
 {-
  Filters the given nodes to those with any of the file blocks, ordered by the number of file blocks (not regarding individual file block length).
 -}
-findNodesWithData :: ((String, Int), String) -> [NodeId] -> IO [NodeId]
-findNodesWithData (config, hdfsFilePath) nodes = do
+findNodesWithData :: String -> [NodeId] -> IO [NodeId]
+findNodesWithData hdfsFilePath nodes = do
+  config <- getConfiguration >>= return . _hdfsConfig
   logInfo ("All nodes for : " ++ hdfsFilePath ++": "++ (show nodes))
   hostsWithData <- hdfsFileDistribution config hdfsFilePath
   (if null hostsWithData then logError else logInfo) ("Hdfs hosts with data: " ++ (show hostsWithData))

@@ -3,7 +3,6 @@ module DataAccess.HdfsWriter where
 --import qualified Codec.Compression.GZip as GZip
 --import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.List (intersperse)
-import Data.List.Split (splitOn)
 import qualified Data.Text.Lazy as TL
 import System.HDFS.HDFSClient
 
@@ -23,10 +22,3 @@ writeEntriesToHdfs _ config path entries = do
                      . concat . intersperse "\n"
     writeToHdfsCreatingDirs :: IO ()
     writeToHdfsCreatingDirs = hdfsWriteNewFile config path $ formatEntries entries
-
-{-|
- Managing when the hdfs://-prefix is included and when not is suboptimal for now. This helper method stripping that part should
- become obsolete.
-|-}
-stripHDFSPartOfPath :: String -> String
-stripHDFSPartOfPath = concat . intersperse "/" . drop 3 . splitOn "/"

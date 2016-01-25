@@ -6,27 +6,19 @@ module TaskSpawning.ObjectCodeModuleDeployment (
 
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
-import Data.List.Split (splitOn)
 import Data.Time.Clock (NominalDiffTime)
 import System.Directory (getHomeDirectory)
 import System.IO.Temp (withSystemTempDirectory)
 
+import Control.Distributed.Task.Util.Configuration
 import TaskSpawning.ExecutionUtil
 import Types.TaskTypes
 import Util.Logging
 
 loadObjectCode :: IO BL.ByteString
 loadObjectCode = do
-  pathConfig <- getConfig "relative-object-codepath"
-  BL.readFile pathConfig
-
-getConfig :: String -> IO String
-getConfig key = do
-  conf <- readFile "etc/config" >>= return . filter (not . null . fst) . map parseConfig . map (splitOn "=") . lines
-  return $ maybe "" id $ lookup key conf
-    where
-      parseConfig :: [String] -> (String, String)
-      parseConfig es = if length es < 2 then ("", "") else (head es, concat $ tail es)
+  config <- getConfiguration
+  BL.readFile (_relativeObjectCodePath config)
 
 codeExecutionOnSlave :: BL.ByteString -> TaskInput -> IO (TaskResult, NominalDiffTime, NominalDiffTime)
 codeExecutionOnSlave objectCode taskInput = do
@@ -58,10 +50,9 @@ codeExecutionOnSlave' taskInput builddir objectCode = do
 determineLibs :: IO ([String], [String])
 determineLibs = do
   homeDir <- getHomeDirectory
-  libLocation <- getConfig "lib-location"
-  ghcVersion <- getConfig "ghc-version"
+  config <- getConfiguration
   remoteLibs <- readFile "etc/remotelibs"
-  return $ buildLibs False homeDir libLocation ghcVersion remoteLibs
+  return $ buildLibs False homeDir (_libLocation config) (_ghcVersion config) remoteLibs
 
 -- transforms system configuration and given libs to (shared libs, lib dirs)
 buildLibs :: Bool -> FilePath -> FilePath -> String -> String -> ([String], [String])

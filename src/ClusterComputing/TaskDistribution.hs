@@ -24,10 +24,11 @@ import Data.List (isSuffixOf)
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
+import Control.Distributed.Task.Util.Configuration
 import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
-import DataAccess.HdfsWriter (writeEntriesToHdfs, stripHDFSPartOfPath)
+import DataAccess.HdfsWriter (writeEntriesToHdfs)
 import qualified TaskSpawning.BinaryStorage as RemoteStore
 import TaskSpawning.TaskDefinition
 import TaskSpawning.TaskDescription
@@ -296,18 +297,20 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
       Empty -> return []
       where
         handlePlainResult _ ReturnAsMessage plainResult = return plainResult
-        handlePlainResult (HdfsData (config, path)) (HdfsResult outputPrefix outputSuffix) plainResult = wrapHdfsAction $ writeEntriesToHdfs zipOutput config outputPath plainResult
+        handlePlainResult (HdfsData path) (HdfsResult outputPrefix outputSuffix) plainResult = do
+          config <- getConfiguration >>= return . _hdfsConfig
+          wrapHdfsAction $ writeEntriesToHdfs zipOutput config outputPath plainResult
           where
             zipOutput = ".gz" `isSuffixOf` outputSuffix
-            outputPath = outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)++outputSuffix
+            outputPath = outputPrefix++"/"++path++outputSuffix
         handlePlainResult _ (HdfsResult _ _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
         handleFileResult (HdfsData _) ReturnAsMessage resultFilePath = logWarn ("Reading result from file: "++resultFilePath++", with hdfs input this is probably unnecesary imperformant for larger results")
                                                                        >> readResultFromFile resultFilePath
         handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
         handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
-        handleFileResult (HdfsData (_, path)) (HdfsResult outputPrefix outputSuffix) resultFilePath = wrapHdfsAction $ copyToHdfs resultFilePath (outputPrefix++restpath) (filename'++outputSuffix)
-          where (restpath, filename') = splitBasePath (stripHDFSPartOfPath path)
+        handleFileResult (HdfsData path) (HdfsResult outputPrefix outputSuffix) resultFilePath = wrapHdfsAction $ copyToHdfs resultFilePath (outputPrefix++restpath) (filename'++outputSuffix)
+          where (restpath, filename') = splitBasePath path
         handleFileResult _ (HdfsResult _ _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
         wrapHdfsAction writeAction = do
           (_, storeDur) <- measureDuration $ writeAction
@@ -332,10 +335,10 @@ showSlaveNodes :: NodeConfig -> IO ()
 showSlaveNodes config = withSlaveNodes config (
   \slaveNodes -> putStrLn ("Slave nodes: " ++ show slaveNodes))
 
-showSlaveNodesWithData :: NodeConfig -> NodeConfig -> String -> IO ()
-showSlaveNodesWithData slaveConfig hdfsConfig hdfsFilePath = withSlaveNodes slaveConfig (
+showSlaveNodesWithData :: NodeConfig -> String -> IO ()
+showSlaveNodesWithData slaveConfig hdfsFilePath = withSlaveNodes slaveConfig (
   \slaveNodes -> do
-    nodesWithData <- findNodesWithData (hdfsConfig, hdfsFilePath) slaveNodes
+    nodesWithData <- findNodesWithData hdfsFilePath slaveNodes
     putStrLn $ "Found these nodes with data: " ++ show nodesWithData)
 
 withSlaveNodes :: NodeConfig -> ([NodeId] -> IO ()) -> IO ()

@@ -75,7 +75,7 @@ expandDataSpec (HdfsDataSpec (config, path) depth filterPrefix) = do
   putStrLn $ "looking for files at " ++ path
   paths <- hdfsListFilesInSubdirsFiltering depth filterPrefix config path
   putStrLn $ "found " ++ (show paths)
-  return $ map (HdfsData . (\p -> (config, p))) paths
+  return $ map HdfsData paths
 expandDataSpec (SimpleDataSpec numDBs) = return $ mkSimpleDataSpecs numDBs
   where
     mkSimpleDataSpecs :: Int -> [DataDef]
@@ -93,14 +93,16 @@ mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleNa
 |-}
 hdfsListFilesInSubdirsFiltering :: Int -> Maybe String -> HDFS.Config -> String -> IO [String]
 hdfsListFilesInSubdirsFiltering descendDepth fileNamePrefixFilter config path = do
-  initialFiles <- HDFS.hdfsListFiles config path
-  recursiveFiles <- recursiveDescent descendDepth initialFiles
+  initialFilePaths <- getFilePaths path
+  recursiveFiles <- recursiveDescent descendDepth initialFilePaths
   return $ maybe recursiveFiles (\prefix -> filter ((prefix `isPrefixOf`) . getFileNamePart) recursiveFiles) fileNamePrefixFilter
   where
+    getFilePaths :: String -> IO [String]
+    getFilePaths p = HDFS.hdfsListFiles config p >>= return . map HDFS._path -- discarding the protocol part is important, as the host name here can force network traffic when distributed
     getFileNamePart path' = let parts = splitOn "/" path' in if null parts then "" else parts !! (length parts -1)
     recursiveDescent :: Int -> [String] -> IO [String]
-    recursiveDescent 0 initialFiles = return initialFiles
-    recursiveDescent n initialFiles = do
-      expanded <- mapM (HDFS.hdfsListFiles config) initialFiles :: IO [[String]]
+    recursiveDescent 0 initialFilePaths = return initialFilePaths
+    recursiveDescent n initialFilePaths = do
+      expanded <- mapM getFilePaths initialFilePaths :: IO [[String]]
       flattened <- return $ concat expanded
       recursiveDescent (n-1) flattened
