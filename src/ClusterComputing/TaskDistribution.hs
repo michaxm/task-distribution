@@ -24,6 +24,8 @@ import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
+import Control.Distributed.Task.Util.Configuration
+
 import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
@@ -140,13 +142,12 @@ executeOnNodes taskDef dataDefs resultDef slaveNodes = do
     then say "no slaves => no results (ports open?)" >> return [] 
     else executeOnNodes' taskDef dataDefs resultDef slaveNodes
 
-data DistributionStrategy = FirstTaskWithData
-
 executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
 executeOnNodes' taskDef dataDefs resultDef slaveNodes = do
   masterProcess <- getSelfPid
+  config <- liftIO getConfiguration
   before <- liftIO getCurrentTime
-  taskResults <- distributeWorkForNodes masterProcess FirstTaskWithData taskDef dataDefs resultDef slaveNodes
+  taskResults <- distributeWorkForNodes masterProcess (_distributionStrategy config) taskDef dataDefs resultDef slaveNodes
   after <- liftIO getCurrentTime
   say $ "total time: " ++ show (diffUTCTime after before)
   mapM_ say $ map showRunStat $ snd taskResults
@@ -192,6 +193,7 @@ distributeWorkForNodes masterProcess strategy taskDef dataDefs resultDef allNode
          suitableTask
       where
         findSuitableTask :: DistributionStrategy -> Process (Maybe DataDef, [DataDef])
+        findSuitableTask AnywhereIsFine = return $ if null undistributedTasks then (Nothing, []) else (Just (head undistributedTasks), tail undistributedTasks)
         findSuitableTask FirstTaskWithData = findSuitableTask' [] undistributedTasks
           where
             findSuitableTask' notSuitable [] = return (Nothing, reverse notSuitable)

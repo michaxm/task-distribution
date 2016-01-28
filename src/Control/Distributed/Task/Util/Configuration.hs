@@ -1,5 +1,5 @@
 module Control.Distributed.Task.Util.Configuration (
-  Configuration(..), getConfiguration
+  Configuration(..), getConfiguration, DistributionStrategy(..)
   )where
 
 import Data.List.Split (splitOn)
@@ -11,15 +11,24 @@ data Configuration = Configuration {
   _libLocation :: FilePath,
   _ghcVersion :: String,
   _hdfsConfig :: HdfsConfig,
-  _thriftConfig :: HdfsConfig
+  _thriftConfig :: HdfsConfig,
+  _distributionStrategy :: DistributionStrategy
   }
+
+data DistributionStrategy
+  = FirstTaskWithData
+  | AnywhereIsFine
 
 getConfiguration :: IO Configuration
 getConfiguration = readFile "etc/config" >>= return . parseConfig
   where
-    parseConfig conf = Configuration (f "relative-object-codepath") (f "lib-location") (f "ghc-version") (readHdfs $ f "hdfs") (readHdfs $ f "thrift")
+    parseConfig conf = Configuration (f "relative-object-codepath") (f "lib-location") (f "ghc-version") (readHdfs $ f "hdfs") (readHdfs $ f "thrift") (readStrat $ f "distribution-strategy")
       where
         f = getConfig conf
+        readStrat s = case s of
+                       "local" -> FirstTaskWithData
+                       "anywhere" -> AnywhereIsFine
+                       _ -> error $ "unknown strategy: "++s
         readHdfs str = let es = splitOn ":" str
                        in if length es == 2
                           then (es !! 0, read $ es !! 1)

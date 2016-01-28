@@ -3,3 +3,4 @@ lib-location=~/.stack/programs/x86_64-linux/ghc-7.8.4/lib/ghc-7.8.4/
 ghc-version=ghc-7.8.4
 hdfs=localhost:8020
 thrift=localhost:55555
+distribution-strategy=anywhere
