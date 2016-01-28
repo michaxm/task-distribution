@@ -90,13 +90,14 @@ runExternalBinaryForInputMode StreamInput programBaseArgs taskInput filePath = d
 |-}
 fullBinaryExecution :: DataModes -> (TaskInput -> TaskResult) -> FilePath -> FilePath ->  IO ()
 fullBinaryExecution (DataModes inputMode outputMode) function taskInputFilePath taskOutputFilePath = do
-  logDebug $ "reading data from: " ++ taskInputFilePath
+  logInfo $ "reading data from: " ++ taskInputFilePath
   taskInput <- getInput inputMode
   logTrace $ show $ taskInput
-  logDebug $ "calculating result"
+  logInfo $ "calculating result"
   result <- return $ function taskInput
   logTrace $ "printing result: " ++ show result
   writeData outputMode result
+  logInfo $ "stored result"
   where
     getInput FileInput = do
       fileContents <- BLC.readFile taskInputFilePath

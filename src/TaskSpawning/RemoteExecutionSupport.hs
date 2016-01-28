@@ -9,7 +9,9 @@ module TaskSpawning.RemoteExecutionSupport (
   ) where
 
 import qualified System.Log.Logger as L
-import System.Environment (getArgs)
+import System.Environment (getArgs, getExecutablePath)
+
+import Control.Distributed.Task.Util.Configuration
 
 import TaskSpawning.DeployFullBinary (unpackDataModes)
 import TaskSpawning.TaskSpawning (executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization)
@@ -26,7 +28,7 @@ withFullBinaryRemoteExecutionSupport fn mainAction = do
    [mode, dataModes, taskInputFilePath, taskOutputFilePath] ->
      if mode == executeFullBinaryArg
      then
-       initLogging L.ERROR L.INFO "log/deployed-executable-task.log" >>
+       initTaskLogging >>
        executionWithinSlaveProcessForFullBinaryDeployment (unpackDataModes dataModes) fn taskInputFilePath taskOutputFilePath
      else mainAction
    _ -> mainAction
@@ -38,7 +40,14 @@ withSerializedThunkRemoteExecutionSupport mainAction = do
    [mode, taskFn, dataModes, taskInputFilePath, taskOutputFilePath] ->
      if mode == executeSerializedThunkArg
      then
-       initLogging L.ERROR L.INFO "log/deployed-thunk-task.log" >>
+       initTaskLogging >>
        executionWithinSlaveProcessForThunkSerialization (unpackDataModes dataModes) taskFn taskInputFilePath taskOutputFilePath
      else mainAction
    _ -> mainAction
+
+initTaskLogging :: IO ()
+initTaskLogging = do
+  conf <- getConfiguration
+  initLogging L.ERROR L.INFO (_taskLogFile conf)
+  self <- getExecutablePath
+  logInfo $ "started task execution for: "++self

@@ -4,3 +4,4 @@ ghc-version=ghc-7.8.4
 hdfs=localhost:8020
 thrift=localhost:55555
 distribution-strategy=anywhere
+task-log-file=log/deployed-executable-task.log
