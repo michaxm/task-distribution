@@ -58,7 +58,7 @@ executable example
   main-is:             Main.hs
   other-modules:       RemoteExecutable
                      , FullBinaryExamples
-                     , VisitCalculation
+                     , DemoTask
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Werror
   build-depends:       base
                      , split

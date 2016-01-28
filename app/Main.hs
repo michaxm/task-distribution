@@ -16,10 +16,10 @@ import Types.TaskTypes
 
 import FullBinaryExamples
 import RemoteExecutable
-import VisitCalculation
+import DemoTask
 
 main :: IO ()
-main = withRemoteExecutionSupport calculateVisits $ do
+main = withRemoteExecutionSupport calculateRatio $ do
   initDefaultLogging ""
   args <- getArgs
   case args of
@@ -70,7 +70,7 @@ parseMasterOpts args =
         mkSerializeThunkDemoArgs :: String -> String -> TaskSpec
         mkSerializeThunkDemoArgs "append" demoArg = SerializedThunk (appendDemo demoArg)
         mkSerializeThunkDemoArgs "filter" demoArg = SerializedThunk (filterDemo demoArg)
-        mkSerializeThunkDemoArgs "visitcalc" _ = SerializedThunk calculateVisits
+        mkSerializeThunkDemoArgs "visitcalc" _ = SerializedThunk calculateRatio
         mkSerializeThunkDemoArgs d a = userSyntaxError $ "unknown demo: " ++ d ++ ":" ++ a
     parseDataSpec :: String -> String -> DataSpec
     parseDataSpec masterHost args =
