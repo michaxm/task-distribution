@@ -1,6 +1,7 @@
 import Data.List (intersperse)
 import System.Environment (getArgs)
 
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import VisitCalculation
 
 main :: IO ()
@@ -12,6 +13,6 @@ main = do
 
 calculateVisits' :: String -> IO ()
 calculateVisits' filePath = do
-  contents <- readFile filePath
-  visits <- return $ calculateVisits $ lines contents
-  writeFile "tmp/out" $ concat $ intersperse "\n" visits
+  contents <- BLC.readFile filePath
+  visits <- return $ calculateVisits $ BLC.lines contents
+  BLC.writeFile "tmp/out" $ BLC.concat $ intersperse (BLC.pack "\n") visits

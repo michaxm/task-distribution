@@ -1,6 +1,6 @@
 module RemoteExecutable (remoteExecutable) where
 
-import Data.List (isInfixOf)
+import Types.TaskTypes
 
-remoteExecutable :: [String] -> [String]
-remoteExecutable = filter ("9404" `isInfixOf`)
+remoteExecutable :: Task
+remoteExecutable _ = []

@@ -5,6 +5,7 @@ module TaskSpawning.ObjectCodeModuleDeployment (
   ) where
 
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.List (intersperse)
 import Data.Time.Clock (NominalDiffTime)
 import System.Directory (getHomeDirectory)
@@ -44,7 +45,7 @@ codeExecutionOnSlave' taskInput builddir objectCode = do
       executeExternal binaryPath [taskInputFilePath]
   logInfo $ "executing task finished"
   logDebug $ "got run output: " ++ (show result)
-  parsedResult <- parseResult result
+  parsedResult <- parseResultStrict $ BLC.pack result
   return (parsedResult, execDur)
 
 determineLibs :: IO ([String], [String])

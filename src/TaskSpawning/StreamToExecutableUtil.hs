@@ -8,9 +8,10 @@ import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.MVar
 import Control.DeepSeq (rnf)
 import Control.Exception.Base
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.List (intersperse)
 import System.FilePath ()
-import System.IO (Handle, hClose, hGetContents, hPutStrLn)
+import System.IO (Handle, hClose, hGetContents)
 import System.Process
 
 import TaskSpawning.ExecutionUtil (expectSuccess)
@@ -26,7 +27,7 @@ executeExternalWritingToStdIn progName progArgs taskInput = do
     handleProcess (Just stdin) (Just stdout) _ processHandle = do
       output  <- hGetContents stdout -- forks?
       ex <- withForkWait (evaluate $ rnf output) $ \waitOut -> do
-        mapM_ (hPutStrLn stdin) taskInput
+        mapM_ (BLC.hPutStrLn stdin) taskInput
         ignoreSigPipe $ hClose stdin
         waitOut
         hClose stdout

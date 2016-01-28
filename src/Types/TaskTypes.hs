@@ -1,5 +1,7 @@
 module Types.TaskTypes where
 
-type TaskInput = [String]
-type TaskResult = [String]
+import Data.ByteString.Lazy (ByteString)
+
+type TaskInput = [ByteString]
+type TaskResult = [ByteString]
 type Task = TaskInput -> TaskResult

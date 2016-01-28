@@ -10,13 +10,14 @@ data Configuration = Configuration {
   _relativeObjectCodePath :: FilePath,
   _libLocation :: FilePath,
   _ghcVersion :: String,
-  _hdfsConfig :: HdfsConfig
+  _hdfsConfig :: HdfsConfig,
+  _thriftConfig :: HdfsConfig
   }
 
 getConfiguration :: IO Configuration
 getConfiguration = readFile "etc/config" >>= return . parseConfig
   where
-    parseConfig conf = Configuration (f "relative-object-codepath") (f "lib-location") (f "ghc-version") (readHdfs $ f "hdfs")
+    parseConfig conf = Configuration (f "relative-object-codepath") (f "lib-location") (f "ghc-version") (readHdfs $ f "hdfs") (readHdfs $ f "thrift")
       where
         f = getConfig conf
         readHdfs str = let es = splitOn ":" str

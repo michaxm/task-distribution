@@ -26,7 +26,7 @@ library
                      , TaskSpawning.TaskSpawning
                      , TaskSpawning.TaskDefinition, TaskSpawning.TaskDescription, TaskSpawning.ExecutionUtil, TaskSpawning.StreamToExecutableUtil, TaskSpawning.BinaryStorage
                      , TaskSpawning.SourceCodeExecution, TaskSpawning.DeployFullBinary, TaskSpawning.DeploySerializedThunk, TaskSpawning.FunctionSerialization, TaskSpawning.ObjectCodeModuleDeployment
-                     , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource, DataAccess.HdfsWriter
+                     , DataAccess.SimpleDataSource, DataAccess.HdfsDataSource
                      , Util.ErrorHandling, Util.Logging, Util.FileUtil
                      , Control.Distributed.Task.Util.Configuration
   ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
@@ -50,6 +50,7 @@ library
                      , hashable
                      , deepseq
                      , zlib
+                     , hadoop-rpc
   default-language:    Haskell2010
 
 executable example
@@ -66,6 +67,7 @@ executable example
                      , containers
                      , json
                      , strings
+                     , bytestring
   default-language:    Haskell2010
 
 executable task-distribution-object-code-remote
@@ -98,6 +100,7 @@ executable test-visit-performance
                      , split
                      , containers
                      , json
+                     , bytestring
   default-language:    Haskell2010
 
 test-suite test-node-matching
@@ -106,6 +109,8 @@ test-suite test-node-matching
                      , src
   main-is:             NodeMatchingTests.hs
   other-modules:       Types.TaskTypes
+                     , Control.Distributed.Task.Util.Configuration
+                     , Types.HdfsConfigTypes
                      , ClusterComputing.DataLocality
                      , Util.Logging
   build-depends:       base
@@ -136,6 +141,8 @@ test-suite test-object-code
   other-modules:       TaskSpawning.ObjectCodeModuleDeployment
                      , TaskSpawning.ExecutionUtil
                      , Types.TaskTypes
+                     , Control.Distributed.Task.Util.Configuration
+                     , Types.HdfsConfigTypes
                      , Util.ErrorHandling
                      , Util.Logging
   build-depends:       base

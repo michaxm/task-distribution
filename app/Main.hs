@@ -1,5 +1,6 @@
 module Main where
 
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.List (intersperse)
 import Data.List.Split (splitOn)
 import Data.Strings (strReplace)

@@ -20,19 +20,17 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
 import Data.ByteString.Lazy (ByteString)
-import Data.List (isSuffixOf)
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
-import Control.Distributed.Task.Util.Configuration
 import ClusterComputing.DataLocality (findNodesWithData)
 import ClusterComputing.LogConfiguration
 import ClusterComputing.TaskTransport
-import DataAccess.HdfsWriter (writeEntriesToHdfs)
 import qualified TaskSpawning.BinaryStorage as RemoteStore
 import TaskSpawning.TaskDefinition
 import TaskSpawning.TaskDescription
-import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResult)
+import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResultStrict)
 import TaskSpawning.TaskSpawning (processTask, RunStat, TaskResultWrapper(..))
 import Types.TaskTypes
 import Util.FileUtil
@@ -296,15 +294,10 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
       (ReadFromFile resultFilePath) -> handleFileResult dataDef resultDef resultFilePath
       Empty -> return []
       where
+        handlePlainResult :: DataDef -> ResultDef -> TaskResult -> IO TaskResult
         handlePlainResult _ ReturnAsMessage plainResult = return plainResult
-        handlePlainResult (HdfsData path) (HdfsResult outputPrefix outputSuffix) plainResult = do
-          config <- getConfiguration >>= return . _hdfsConfig
-          wrapHdfsAction $ writeEntriesToHdfs zipOutput config outputPath plainResult
-          where
-            zipOutput = ".gz" `isSuffixOf` outputSuffix
-            outputPath = outputPrefix++"/"++path++outputSuffix
-        handlePlainResult _ (HdfsResult _ _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
-        handlePlainResult _ ReturnOnlyNumResults plainResult = return (plainResult >>= \rs -> [show $ length rs])
+        handlePlainResult _ (HdfsResult _ _) _ = error "storage of a plain result (some distribution methods) to hdfs currently not supported"
+        handlePlainResult _ ReturnOnlyNumResults plainResult = return $ [BLC.pack $ show $ length plainResult]
         handleFileResult (HdfsData _) ReturnAsMessage resultFilePath = logWarn ("Reading result from file: "++resultFilePath++", with hdfs input this is probably unnecesary imperformant for larger results")
                                                                        >> readResultFromFile resultFilePath
         handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
@@ -320,7 +313,7 @@ handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingD
           _ <- executeExternal "hdfs" ["dfs", "-mkdir", "-p", destPath]
           executeExternal "hdfs" ["dfs", "-copyFromLocal", localFile, destPath ++ "/" ++ destFilename]
         readResultFromFile :: FilePath -> IO TaskResult
-        readResultFromFile f = readFile f >>= parseResult
+        readResultFromFile f = BLC.readFile f >>= parseResultStrict
 
 -- preparation negotiaion
 

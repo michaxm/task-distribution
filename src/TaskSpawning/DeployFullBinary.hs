@@ -11,10 +11,8 @@ import Data.Time.Clock (NominalDiffTime)
 import System.FilePath ()
 import System.Process (readProcessWithExitCode)
 
-import DataAccess.HdfsWriter (writeEntriesToHdfs)
 import TaskSpawning.ExecutionUtil
 import TaskSpawning.StreamToExecutableUtil
-import Types.HdfsConfigTypes
 import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
 import Util.Logging
 
@@ -27,8 +25,6 @@ data InputMode
 
 data OutputMode
   = FileOutput ZipOutput
-  | HdfsOutput HdfsLocation ZipOutput
-    --writeToHdfs $ writeEntriesToFile config (outputPrefix ++ "/" ++ (stripHDFSPartOfPath path)++outputSuffix)
 
 packDataModes :: DataModes -> String
 packDataModes (DataModes inputMode outputMode) = (packInputMode inputMode)++"|"++(packOutputMode outputMode)
@@ -47,7 +43,6 @@ unpackInputMode "StreamInput" = StreamInput
 unpackInputMode s = error $ "unknown value: " ++ s
 packOutputMode :: OutputMode -> String
 packOutputMode (FileOutput z) = "FileOutput" ++ (if z then ":zipped" else "")
-packOutputMode (HdfsOutput ((h, p), l) z) = "HdfsOutput:"++(if z then "zipped:" else "")++h++":"++(show p)++":"++l
 unpackOutputMode :: String -> OutputMode
 unpackOutputMode "FileOutput" = FileOutput False
 unpackOutputMode "FileOutput:zipped" = FileOutput True
@@ -55,8 +50,6 @@ unpackOutputMode s = let es = splitOn ":" s
                      in case es of
                      ["FileOutput"] -> FileOutput False
                      ["FileOutput", "zipped"] -> FileOutput True
-                     ["HdfsOutput", h, p, l] -> HdfsOutput ((h, (read p)), l) False
-                     ["HdfsOutput", "zipped", h, p, l] -> HdfsOutput ((h, (read p)), l) True
                      _ -> error $ "unknown value: " ++ s
 
 type ZipOutput = Bool
@@ -110,5 +103,6 @@ fullBinaryExecution (DataModes inputMode outputMode) function taskInputFilePath 
       logTrace $ show fileContents
       deserializeTaskInput fileContents
     getInput StreamInput = readStdTillEOF
-    writeData (FileOutput z) = (>> logInfo ("wrote result to file: "++taskOutputFilePath)) . BL.writeFile taskOutputFilePath . (if z then GZip.compress else id) . BLC.pack . concat . intersperse "\n"
-    writeData (HdfsOutput l z) = uncurry (writeEntriesToHdfs z) l
+    writeData :: OutputMode -> [BL.ByteString] -> IO ()
+    writeData (FileOutput z) = (>> logInfo ("wrote result to file: "++taskOutputFilePath)) . BL.writeFile taskOutputFilePath . (if z then GZip.compress else id) . BLC.concat . intersperse (BLC.pack "\n")
+

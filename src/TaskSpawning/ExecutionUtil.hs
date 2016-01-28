@@ -9,14 +9,14 @@ module TaskSpawning.ExecutionUtil (
   createTempFilePath,
   serializeTaskInput,
   deserializeTaskInput,
-  parseResult, -- TODO move out of here
+  parseResultStrict, -- TODO move out of here
   executeExternal,
   measureDuration,
   readStdTillEOF
   ) where
 
 import Control.Exception.Base (bracket, catch)
--- FIXME really lazy? rather use strict???
+import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
@@ -79,8 +79,8 @@ serializeTaskInput = BLC.pack . show
 deserializeTaskInput :: BLC.ByteString -> IO TaskInput
 deserializeTaskInput s = withErrorAction logError "Could not read input data" $ return $ read $ BLC.unpack s
 
-parseResult :: String -> IO TaskResult
-parseResult s = withErrorPrefix ("Cannot parse result: "++s) $ return $! (lines s :: TaskResult)
+parseResultStrict :: BLC.ByteString -> IO TaskResult
+parseResultStrict s = withErrorPrefix ("Cannot parse result: "++ (BLC.unpack s)) $ return $! (BLC.lines s :: TaskResult)
 
 executeExternal :: FilePath -> [String] -> IO String
 executeExternal executable args = do
@@ -104,8 +104,8 @@ readStdTillEOF = do
      rest <- readStdTillEOF
      return (line:rest)
   where
-    readLnUnlessEOF :: IO (Maybe String)
-    readLnUnlessEOF = (getLine >>= return . Just) `catch` eofHandler
+    readLnUnlessEOF :: IO (Maybe BL.ByteString)
+    readLnUnlessEOF = (BC.getLine >>= return . Just . BLC.fromStrict) `catch` eofHandler
       where
-        eofHandler :: IOError -> IO (Maybe String)
+        eofHandler :: IOError -> IO (Maybe BL.ByteString)
         eofHandler e = if isEOFError e then return Nothing else ioError e

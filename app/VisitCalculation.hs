@@ -1,5 +1,6 @@
 module VisitCalculation (calculateVisits) where
 
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.Foldable (foldl')
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
@@ -12,8 +13,8 @@ type VisitId = String
 type RequestTime = String
 type Event = String
 
-calculateVisits :: [String] -> [String]
-calculateVisits = map formatVisit . partitionByVisitorId . parseEvents
+calculateVisits :: [BLC.ByteString] -> [BLC.ByteString]
+calculateVisits = map BLC.pack . map formatVisit . partitionByVisitorId . parseEvents . map BLC.unpack -- TODO probably highly imperformant
 
 parseEvents :: [String] -> [ParsedEvent]
 parseEvents = foldl' (\p -> maybe p (:p) . parseEvent) []

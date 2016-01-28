@@ -19,7 +19,7 @@ import Util.Logging
 -}
 findNodesWithData :: String -> [NodeId] -> IO [NodeId]
 findNodesWithData hdfsFilePath nodes = do
-  config <- getConfiguration >>= return . _hdfsConfig
+  config <- getConfiguration >>= return . _thriftConfig
   logInfo ("All nodes for : " ++ hdfsFilePath ++": "++ (show nodes))
   hostsWithData <- hdfsFileDistribution config hdfsFilePath
   (if null hostsWithData then logError else logInfo) ("Hdfs hosts with data: " ++ (show hostsWithData))
