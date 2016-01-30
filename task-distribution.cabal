@@ -88,6 +88,7 @@ executable run-demo-task
                      , bytestring
                      , zlib
                      , split
+                     , async
   default-language:    Haskell2010
 
 executable test-visit-performance
