@@ -1,16 +1,19 @@
+{-# LANGUAGE BangPatterns #-}
 module DemoTask where
 
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
+import Data.List (foldl')
 import Data.Maybe
 
 calculateRatio :: [BL.ByteString] -> [BL.ByteString]
-calculateRatio = (:[]) . BLC.pack . show . divideRatio . foldr countHits (0, 0) . parseEntries
+calculateRatio = (:[]) . BLC.pack . show . divideRatio . foldl' (flip countHits) (0, 0) . parseEntries
   where
     divideRatio :: (Int, Int) -> Double
     divideRatio (hits, count) = fromIntegral hits / (fromIntegral count)
     countHits :: Entry -> (Int, Int) -> (Int, Int)
-    countHits e (hits, count) = (hits + if isHit e then 1 else 0, count+1)
+    -- especially hits are important to evaluate strict here to avoid building up of costly to store thunks, containing entries (count is affected to a lesser degree)
+    countHits e (!hits, !count) = (hits + if isHit e then 1 else 0, count+1)
 
 isHit :: Entry -> Bool
 isHit (_, _, vs) = maybe False notEmpty $ lookup (BLC.pack "searchCrit") vs

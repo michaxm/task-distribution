@@ -83,7 +83,7 @@ executable run-demo-task
   hs-source-dirs:      app
   main-is:             RunDemoTask.hs
   other-modules:       DemoTask
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -O2 -auto-all -caf-all
   build-depends:       base
                      , bytestring
                      , zlib
