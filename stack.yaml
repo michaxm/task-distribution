@@ -6,13 +6,11 @@ resolver: lts-2.22
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
-- haskell-hdfs-thrift-client
 - packman
 - hadoop-rpc
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: [
-  thrift-0.9.3,
   strings-1.1,
   protobuf-0.2.1.0,
 ]

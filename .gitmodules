@@ -1,6 +1,3 @@
-[submodule "haskell-hdfs-thrift-client"]
-	path = haskell-hdfs-thrift-client
-	url = https://github.com/michaxm/haskell-hdfs-thrift-client
 [submodule "packman"]
 	path = packman
 	url = https://github.com/jberthold/packman.git

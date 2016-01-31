@@ -9,15 +9,15 @@ module ClusterComputing.RunComputation (
 import Data.List (isPrefixOf)
 import Data.List.Split (splitOn)
 import System.Environment (getExecutablePath)
-import qualified System.HDFS.HDFSClient as HDFS --TODO ok to be referenced here? probably yes, but consider again later
 
-import Control.Distributed.Task.Util.Configuration
+import qualified Control.Distributed.Task.DataAccess.HdfsListing as HDFS
 
 import ClusterComputing.TaskDistribution
 import TaskSpawning.TaskSpawning (fullBinarySerializationOnMaster, serializedThunkSerializationOnMaster, objectCodeSerializationOnMaster)
 import TaskSpawning.TaskDefinition
 import Types.HdfsConfigTypes
 import Types.TaskTypes
+import Util.Logging
 
 data MasterOptions = MasterOptions {
   _host :: String,
@@ -75,8 +75,7 @@ convertInputMode Stream = StreamInput
 expandDataSpec :: DataSpec -> IO [DataDef]
 expandDataSpec (HdfsDataSpec path depth filterPrefix) = do
   putStrLn $ "looking for files at " ++ path
-  config <- getConfiguration
-  paths <- hdfsListFilesInSubdirsFiltering depth filterPrefix (_thriftConfig config) path
+  paths <- hdfsListFilesInSubdirsFiltering depth filterPrefix path
   putStrLn $ "found " ++ (show paths)
   return $ map HdfsData paths
 expandDataSpec (SimpleDataSpec numDBs) = return $ mkSimpleDataSpecs numDBs
@@ -94,18 +93,18 @@ mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleNa
  Like hdfsListFiles, but descending into subdirectories and filtering the file names. Note that for now this is a rather a quick hack
  for special needs than a full fledged shell expansion
 |-}
-hdfsListFilesInSubdirsFiltering :: Int -> Maybe String -> HDFS.Config -> String -> IO [String]
-hdfsListFilesInSubdirsFiltering descendDepth fileNamePrefixFilter config path = do
-  initialFilePaths <- getFilePaths path
-  recursiveFiles <- recursiveDescent descendDepth initialFilePaths
+hdfsListFilesInSubdirsFiltering :: Int -> Maybe String -> String -> IO [String]
+hdfsListFilesInSubdirsFiltering descendDepth fileNamePrefixFilter path = do
+  initialFilePaths <- HDFS.listFiles path
+  recursiveFiles <- recursiveDescent descendDepth path initialFilePaths
+  logDebug $ "found: " ++ (show recursiveFiles)
   return $ maybe recursiveFiles (\prefix -> filter ((prefix `isPrefixOf`) . getFileNamePart) recursiveFiles) fileNamePrefixFilter
   where
-    getFilePaths :: String -> IO [String]
-    getFilePaths p = HDFS.hdfsListFiles config p >>= return . map HDFS._path -- discarding the protocol part is important, as the host name here can force network traffic when distributed
     getFileNamePart path' = let parts = splitOn "/" path' in if null parts then "" else parts !! (length parts -1)
-    recursiveDescent :: Int -> [String] -> IO [String]
-    recursiveDescent 0 initialFilePaths = return initialFilePaths
-    recursiveDescent n initialFilePaths = do
-      expanded <- mapM getFilePaths initialFilePaths :: IO [[String]]
-      flattened <- return $ concat expanded
-      recursiveDescent (n-1) flattened
+    recursiveDescent :: Int -> String -> [String] -> IO [String]
+    recursiveDescent 0 prefix paths = return (map (\p -> prefix++"/"++p) paths)
+    recursiveDescent n prefix paths = do
+      absolute <- return $ map (prefix++) paths :: IO [String]
+      pathsWithChildren <- mapM (\p -> (HDFS.listFiles p >>= \cs -> return (p, cs))) absolute :: IO [(String, [String])]
+      descended <- mapM (\(p, cs) -> if null cs then return [p] else recursiveDescent (n-1) p cs) pathsWithChildren :: IO [[String]]
+      return $ concat descended

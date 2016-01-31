@@ -9,9 +9,9 @@ import Data.List (sortBy)
 import Data.List.Split (splitOn)
 import Data.Ord (comparing)
 import Prelude hiding (log)
-import System.HDFS.HDFSClient
 
-import Control.Distributed.Task.Util.Configuration
+import qualified Control.Distributed.Task.DataAccess.HdfsListing as HDFS
+
 import Util.Logging
 
 {-
@@ -19,9 +19,8 @@ import Util.Logging
 -}
 findNodesWithData :: String -> [NodeId] -> IO [NodeId]
 findNodesWithData hdfsFilePath nodes = do
-  config <- getConfiguration >>= return . _thriftConfig
   logInfo ("All nodes for : " ++ hdfsFilePath ++": "++ (show nodes))
-  hostsWithData <- hdfsFileDistribution config hdfsFilePath
+  hostsWithData <- HDFS.listBlockDistribution hdfsFilePath
   (if null hostsWithData then logError else logInfo) ("Hdfs hosts with data: " ++ (show hostsWithData))
   hosts <- readHostNames
   logDebug (show hosts)
@@ -30,8 +29,11 @@ findNodesWithData hdfsFilePath nodes = do
   return mergedNodeIds
     where
       matcher hosts node (hdfsName, _) = nodeMatcher hosts (show node) hdfsName -- HACK uses show to access nodeId data
-      merger :: NodeId -> (String, Int) -> (NodeId, Int)
+      merger :: NodeId -> HdfsHit -> (NodeId, Int)
       merger nid (_, n) = (nid, n)
+
+type HdfsHit = (String, BlockCount)
+type BlockCount = Int
 
 readHostNames :: IO [(String, String)]
 readHostNames = do
