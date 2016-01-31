@@ -11,6 +11,8 @@ import Data.List.Split (splitOn)
 import System.Environment (getExecutablePath)
 import qualified System.HDFS.HDFSClient as HDFS --TODO ok to be referenced here? probably yes, but consider again later
 
+import Control.Distributed.Task.Util.Configuration
+
 import ClusterComputing.TaskDistribution
 import TaskSpawning.TaskSpawning (fullBinarySerializationOnMaster, serializedThunkSerializationOnMaster, objectCodeSerializationOnMaster)
 import TaskSpawning.TaskDefinition
@@ -38,7 +40,7 @@ data TaskSpec
 data InputMode = File | Stream
 data DataSpec
   = SimpleDataSpec Int
-  | HdfsDataSpec HdfsLocation Int (Maybe String)
+  | HdfsDataSpec HdfsPath Int (Maybe String)
 data ResultSpec
   = CollectOnMaster (TaskResult -> IO ())
   | StoreInHdfs String String
@@ -71,9 +73,10 @@ convertInputMode File = FileInput
 convertInputMode Stream = StreamInput
 
 expandDataSpec :: DataSpec -> IO [DataDef]
-expandDataSpec (HdfsDataSpec (config, path) depth filterPrefix) = do
+expandDataSpec (HdfsDataSpec path depth filterPrefix) = do
   putStrLn $ "looking for files at " ++ path
-  paths <- hdfsListFilesInSubdirsFiltering depth filterPrefix config path
+  config <- getConfiguration
+  paths <- hdfsListFilesInSubdirsFiltering depth filterPrefix (_thriftConfig config) path
   putStrLn $ "found " ++ (show paths)
   return $ map HdfsData paths
 expandDataSpec (SimpleDataSpec numDBs) = return $ mkSimpleDataSpecs numDBs
