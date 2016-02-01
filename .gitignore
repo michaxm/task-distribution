@@ -2,7 +2,7 @@
 */#*#
 *_flymake.hs
 .stack-work
-log/*.log
+log
 tmp
 dist
 hadoop-rpc
