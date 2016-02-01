@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric, OverlappingInstances #-} --overlapping due to serialization
-module ClusterComputing.TaskTransport where
+module Control.Distributed.Task.Distribution.TaskTransport where
 
 import Control.Distributed.Process (ProcessId, NodeId)
 import Control.Distributed.Process.Serializable (Serializable)
@@ -10,7 +10,7 @@ import Data.Time.Clock (UTCTime(..), NominalDiffTime)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 
-import TaskSpawning.TaskDefinition
+import Control.Distributed.Task.TaskSpawning.TaskDefinition
 
 data TaskTransport = TaskTransport {
   _masterProcess :: ProcessId,

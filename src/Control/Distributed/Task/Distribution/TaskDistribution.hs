@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module ClusterComputing.TaskDistribution (
+module Control.Distributed.Task.Distribution.TaskDistribution (
   startSlaveNode,
   executeDistributed,
   showSlaveNodes,
@@ -24,19 +24,18 @@ import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
 
+import Control.Distributed.Task.Distribution.DataLocality (findNodesWithData)
+import Control.Distributed.Task.Distribution.LogConfiguration
+import Control.Distributed.Task.Distribution.TaskTransport
+import qualified Control.Distributed.Task.TaskSpawning.BinaryStorage as RemoteStore
+import Control.Distributed.Task.TaskSpawning.TaskDefinition
+import Control.Distributed.Task.TaskSpawning.TaskDescription
+import Control.Distributed.Task.TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResultStrict)
+import Control.Distributed.Task.TaskSpawning.TaskSpawning (processTask, RunStat, TaskResultWrapper(..))
+import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.Configuration
-
-import ClusterComputing.DataLocality (findNodesWithData)
-import ClusterComputing.LogConfiguration
-import ClusterComputing.TaskTransport
-import qualified TaskSpawning.BinaryStorage as RemoteStore
-import TaskSpawning.TaskDefinition
-import TaskSpawning.TaskDescription
-import TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResultStrict)
-import TaskSpawning.TaskSpawning (processTask, RunStat, TaskResultWrapper(..))
-import Types.TaskTypes
-import Util.FileUtil
-import Util.Logging
+import Control.Distributed.Task.Util.FileUtil
+import Control.Distributed.Task.Util.Logging
 
 {-
  The bits in this file are arranged so that the less verbose Template Haskell version would work. That version is not used due to incompability

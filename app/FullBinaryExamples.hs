@@ -4,7 +4,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.List (isInfixOf)
 
-import Types.TaskTypes
+import Control.Distributed.Task.Types.TaskTypes
 
 appendDemo :: String -> TaskInput -> TaskResult
 appendDemo  demoArg = map (\str -> str `BLC.append` (BLC.pack $ " "++demoArg))

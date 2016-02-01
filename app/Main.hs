@@ -7,12 +7,12 @@ import Data.Strings (strReplace)
 import System.Environment (getArgs, getExecutablePath)
 import qualified System.Log.Logger as L
 
-import ClusterComputing.LogConfiguration (initDefaultLogging)
-import ClusterComputing.RunComputation
-import ClusterComputing.TaskDistribution (startSlaveNode, showSlaveNodes, showSlaveNodesWithData, shutdownSlaveNodes)
-import TaskSpawning.RemoteExecutionSupport
-import Types.HdfsConfigTypes
-import Types.TaskTypes
+import Control.Distributed.Task.Distribution.LogConfiguration (initDefaultLogging)
+import Control.Distributed.Task.Distribution.RunComputation
+import Control.Distributed.Task.Distribution.TaskDistribution (startSlaveNode, showSlaveNodes, showSlaveNodesWithData, shutdownSlaveNodes)
+import Control.Distributed.Task.TaskSpawning.RemoteExecutionSupport
+import Control.Distributed.Task.Types.HdfsConfigTypes
+import Control.Distributed.Task.Types.TaskTypes
 
 import FullBinaryExamples
 import RemoteExecutable

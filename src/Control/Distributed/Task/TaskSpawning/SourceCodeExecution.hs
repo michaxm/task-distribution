@@ -1,4 +1,4 @@
-module TaskSpawning.SourceCodeExecution (
+module Control.Distributed.Task.TaskSpawning.SourceCodeExecution (
   loadTask
   ) where
 

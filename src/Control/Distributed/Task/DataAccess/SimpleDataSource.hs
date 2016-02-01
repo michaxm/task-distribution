@@ -1,7 +1,8 @@
-module DataAccess.SimpleDataSource where
+module Control.Distributed.Task.DataAccess.SimpleDataSource where
 
 import qualified Data.ByteString.Lazy.Char8 as BLC
-import Types.TaskTypes (TaskInput)
+
+import Control.Distributed.Task.Types.TaskTypes (TaskInput)
 
 loadEntries :: FilePath -> IO TaskInput
 loadEntries filePath =

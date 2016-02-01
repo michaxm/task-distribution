@@ -1,4 +1,4 @@
-module TaskSpawning.TaskSpawning (
+module Control.Distributed.Task.TaskSpawning.TaskSpawning (
   processTask, RunStat, TaskResultWrapper(..),
   fullBinarySerializationOnMaster, executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment,
   serializedThunkSerializationOnMaster, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization,
@@ -9,22 +9,21 @@ import Data.List (isSuffixOf)
 import Data.Time.Clock (NominalDiffTime)
 import qualified Language.Haskell.Interpreter as I
 
-import qualified DataAccess.SimpleDataSource as SDS
-import qualified DataAccess.HdfsDataSource as HDS
-
+import qualified Control.Distributed.Task.DataAccess.SimpleDataSource as SDS
+import qualified Control.Distributed.Task.DataAccess.HdfsDataSource as HDS
+import qualified Control.Distributed.Task.TaskSpawning.BinaryStorage as RemoteStore
+import qualified Control.Distributed.Task.TaskSpawning.DeployFullBinary as DFB
+import qualified Control.Distributed.Task.TaskSpawning.DeploySerializedThunk as DST
+import qualified Control.Distributed.Task.TaskSpawning.ObjectCodeModuleDeployment as DOC
+import Control.Distributed.Task.TaskSpawning.ExecutionUtil (measureDuration)
+import Control.Distributed.Task.TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction)
+import Control.Distributed.Task.TaskSpawning.SourceCodeExecution (loadTask)
+import Control.Distributed.Task.TaskSpawning.TaskDefinition
+import Control.Distributed.Task.TaskSpawning.TaskDescription
+import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.Configuration
-import qualified TaskSpawning.BinaryStorage as RemoteStore
-import qualified TaskSpawning.DeployFullBinary as DFB
-import qualified TaskSpawning.DeploySerializedThunk as DST
-import qualified TaskSpawning.ObjectCodeModuleDeployment as DOC
-import TaskSpawning.ExecutionUtil (measureDuration)
-import TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction)
-import TaskSpawning.SourceCodeExecution (loadTask)
-import TaskSpawning.TaskDefinition
-import TaskSpawning.TaskDescription
-import Types.TaskTypes
-import Util.ErrorHandling
-import Util.Logging
+import Control.Distributed.Task.Util.ErrorHandling
+import Control.Distributed.Task.Util.Logging
 
 executeFullBinaryArg, executeSerializedThunkArg :: String
 executeFullBinaryArg = "executefullbinary"

@@ -1,11 +1,11 @@
-module ClusterComputing.LogConfiguration (
+module Control.Distributed.Task.Distribution.LogConfiguration (
   initLogging,
   initDefaultLogging -- TODO take loglevels from configuration
   ) where
 
 import qualified System.Log.Logger as L
 
-import Util.Logging (initLogging)
+import Control.Distributed.Task.Util.Logging (initLogging)
 
 initDefaultLogging :: String -> IO ()
 initDefaultLogging suffix = do

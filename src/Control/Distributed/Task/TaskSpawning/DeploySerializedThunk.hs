@@ -1,13 +1,12 @@
-module TaskSpawning.DeploySerializedThunk (deployAndRunSerializedThunk, serializedThunkExecution, acceptAndExecuteSerializedThunk) where
+module Control.Distributed.Task.TaskSpawning.DeploySerializedThunk (deployAndRunSerializedThunk, serializedThunkExecution, acceptAndExecuteSerializedThunk) where
 
--- FIXME really lazy? rather use strict???
 import qualified Data.ByteString.Lazy as BL
 import Data.Time.Clock (NominalDiffTime)
 import System.FilePath ()
 
-import TaskSpawning.DeployFullBinary (deployAndRunExternalBinary, fullBinaryExecution, DataModes(..), InputMode(..), OutputMode(..), ZipOutput)
-import TaskSpawning.FunctionSerialization (deserializeFunction)
-import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
+import Control.Distributed.Task.TaskSpawning.DeployFullBinary (deployAndRunExternalBinary, fullBinaryExecution, DataModes(..), InputMode(..), OutputMode(..), ZipOutput)
+import Control.Distributed.Task.TaskSpawning.FunctionSerialization (deserializeFunction)
+import Control.Distributed.Task.Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
 
 {-
  Deploys a given binary and executes it with the arguments defined by convention, including the serialized closure runnable in that program.

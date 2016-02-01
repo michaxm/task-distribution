@@ -1,4 +1,4 @@
-module Types.HdfsConfigTypes where
+module Control.Distributed.Task.Types.HdfsConfigTypes where
 
 type HdfsConfig = (String, Int)
 type HdfsPath = String

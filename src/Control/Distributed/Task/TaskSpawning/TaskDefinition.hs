@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
-module TaskSpawning.TaskDefinition where
+module Control.Distributed.Task.TaskSpawning.TaskDefinition where
 
 import Control.Distributed.Process.Serializable (Serializable)
 import Data.Binary (Binary)
@@ -7,7 +7,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 
-import Types.HdfsConfigTypes
+import Control.Distributed.Task.Types.HdfsConfigTypes
 
 {-
   The way how code is to be distributed. The approaches have different disadvantages:

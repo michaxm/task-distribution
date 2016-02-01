@@ -1,6 +1,6 @@
-module TaskSpawning.TaskDescription where
+module Control.Distributed.Task.TaskSpawning.TaskDescription where
 
-import TaskSpawning.TaskDefinition
+import Control.Distributed.Task.TaskSpawning.TaskDefinition
 
 class Describable a where
   describe :: a -> String

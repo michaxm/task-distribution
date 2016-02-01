@@ -1,4 +1,4 @@
-module TaskSpawning.DeployFullBinary (
+module Control.Distributed.Task.TaskSpawning.DeployFullBinary (
   deployAndRunFullBinary, deployAndRunExternalBinary, fullBinaryExecution, runExternalBinary,
   unpackDataModes, DataModes(..), InputMode(..), OutputMode(..), ZipOutput) where
 
@@ -11,10 +11,10 @@ import Data.Time.Clock (NominalDiffTime)
 import System.FilePath ()
 import System.Process (readProcessWithExitCode)
 
-import TaskSpawning.ExecutionUtil
-import TaskSpawning.StreamToExecutableUtil
-import Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
-import Util.Logging
+import Control.Distributed.Task.TaskSpawning.ExecutionUtil
+import Control.Distributed.Task.TaskSpawning.StreamToExecutableUtil
+import Control.Distributed.Task.Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
+import Control.Distributed.Task.Util.Logging
 
 data DataModes =
   DataModes InputMode OutputMode

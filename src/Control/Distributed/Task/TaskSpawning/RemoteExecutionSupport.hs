@@ -2,7 +2,7 @@
   Catches expected entry points for full binary deployment / thunk serialization.
   These modes deploy the itself as a program and are called remote with different arguments, which is handled here.
 |-}
-module TaskSpawning.RemoteExecutionSupport (
+module Control.Distributed.Task.TaskSpawning.RemoteExecutionSupport (
   withRemoteExecutionSupport,
   withFullBinaryRemoteExecutionSupport,
   withSerializedThunkRemoteExecutionSupport
@@ -11,12 +11,11 @@ module TaskSpawning.RemoteExecutionSupport (
 import qualified System.Log.Logger as L
 import System.Environment (getArgs, getExecutablePath)
 
+import Control.Distributed.Task.TaskSpawning.DeployFullBinary (unpackDataModes)
+import Control.Distributed.Task.TaskSpawning.TaskSpawning (executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization)
+import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.Configuration
-
-import TaskSpawning.DeployFullBinary (unpackDataModes)
-import TaskSpawning.TaskSpawning (executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization)
-import Types.TaskTypes
-import Util.Logging
+import Control.Distributed.Task.Util.Logging
 
 withRemoteExecutionSupport :: (TaskInput -> TaskResult) -> IO () -> IO ()
 withRemoteExecutionSupport fn = withSerializedThunkRemoteExecutionSupport . withFullBinaryRemoteExecutionSupport fn

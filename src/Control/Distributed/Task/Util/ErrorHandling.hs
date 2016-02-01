@@ -1,4 +1,4 @@
-module Util.ErrorHandling (withErrorPrefix, withErrorAction) where
+module Control.Distributed.Task.Util.ErrorHandling (withErrorPrefix, withErrorAction) where
 
 import Control.Exception (catch, SomeException)
 

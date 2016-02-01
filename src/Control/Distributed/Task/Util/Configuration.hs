@@ -4,7 +4,7 @@ module Control.Distributed.Task.Util.Configuration (
 
 import Data.List.Split (splitOn)
 
-import Types.HdfsConfigTypes
+import Control.Distributed.Task.Types.HdfsConfigTypes
 
 data Configuration = Configuration {
   _relativeObjectCodePath :: FilePath,

@@ -2,7 +2,7 @@
  Simple binary file storage for temporary files.
  Stores under <tempdir>/temp-binary-storage/
 |-}
-module TaskSpawning.BinaryStorage (calculateHash, put, get, clearAll) where
+module Control.Distributed.Task.TaskSpawning.BinaryStorage (calculateHash, put, get, clearAll) where
 
 import qualified Data.ByteString.Lazy as BL
 import Data.Hashable (hash)

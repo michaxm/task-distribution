@@ -1,11 +1,11 @@
-module TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction) where
+module Control.Distributed.Task.TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction) where
 
 import Data.Binary (encode, decode)
 import qualified Data.ByteString.Lazy as L
 import Data.Typeable (Typeable)
 import qualified GHC.Packing as P
 
-import Util.ErrorHandling
+import Control.Distributed.Task.Util.ErrorHandling
 
 serializeFunction :: (Typeable a, Typeable b) => (a -> b) -> IO L.ByteString
 serializeFunction = serialize

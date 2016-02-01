@@ -11,8 +11,7 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Control.Distributed.Task.Util.Configuration
-
-import Util.Logging
+import Control.Distributed.Task.Util.Logging
 
 listFiles :: String -> IO [String]
 listFiles path = do

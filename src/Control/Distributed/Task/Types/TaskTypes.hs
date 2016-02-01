@@ -1,4 +1,4 @@
-module Types.TaskTypes where
+module Control.Distributed.Task.Types.TaskTypes where
 
 import Data.ByteString.Lazy (ByteString)
 

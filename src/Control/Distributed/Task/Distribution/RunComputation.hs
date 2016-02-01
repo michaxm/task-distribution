@@ -1,4 +1,4 @@
-module ClusterComputing.RunComputation (
+module Control.Distributed.Task.Distribution.RunComputation (
   MasterOptions(..),
   TaskSpec(..),
   InputMode(..),
@@ -11,13 +11,12 @@ import Data.List.Split (splitOn)
 import System.Environment (getExecutablePath)
 
 import qualified Control.Distributed.Task.DataAccess.HdfsListing as HDFS
-
-import ClusterComputing.TaskDistribution
-import TaskSpawning.TaskSpawning (fullBinarySerializationOnMaster, serializedThunkSerializationOnMaster, objectCodeSerializationOnMaster)
-import TaskSpawning.TaskDefinition
-import Types.HdfsConfigTypes
-import Types.TaskTypes
-import Util.Logging
+import Control.Distributed.Task.Distribution.TaskDistribution
+import Control.Distributed.Task.TaskSpawning.TaskSpawning (fullBinarySerializationOnMaster, serializedThunkSerializationOnMaster, objectCodeSerializationOnMaster)
+import Control.Distributed.Task.TaskSpawning.TaskDefinition
+import Control.Distributed.Task.Types.HdfsConfigTypes
+import Control.Distributed.Task.Types.TaskTypes
+import Control.Distributed.Task.Util.Logging
 
 data MasterOptions = MasterOptions {
   _host :: String,

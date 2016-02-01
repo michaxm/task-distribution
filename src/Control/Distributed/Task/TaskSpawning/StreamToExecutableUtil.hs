@@ -2,7 +2,7 @@
 {-|
  Mostly borrowed from System.Process internals.
 |-}
-module TaskSpawning.StreamToExecutableUtil (executeExternalWritingToStdIn) where
+module Control.Distributed.Task.TaskSpawning.StreamToExecutableUtil (executeExternalWritingToStdIn) where
 
 import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.MVar
@@ -14,9 +14,9 @@ import System.FilePath ()
 import System.IO (Handle, hClose, hGetContents)
 import System.Process
 
-import TaskSpawning.ExecutionUtil (expectSuccess)
-import Types.TaskTypes
-import Util.Logging
+import Control.Distributed.Task.TaskSpawning.ExecutionUtil (expectSuccess)
+import Control.Distributed.Task.Types.TaskTypes
+import Control.Distributed.Task.Util.Logging
 
 executeExternalWritingToStdIn :: FilePath -> [String] -> TaskInput -> IO String
 executeExternalWritingToStdIn progName progArgs taskInput = do

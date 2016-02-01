@@ -1,4 +1,4 @@
-module TaskSpawning.ExecutionUtil (
+module Control.Distributed.Task.TaskSpawning.ExecutionUtil (
   withEnv,
   withTempBLFile,
   withTempBLCFile,
@@ -29,9 +29,9 @@ import System.IO.Error (catchIOError, isEOFError)
 import System.IO.Temp (withSystemTempFile)
 import System.Process (readProcessWithExitCode)
 
-import Types.TaskTypes (TaskInput, TaskResult)
-import Util.ErrorHandling
-import Util.Logging
+import Control.Distributed.Task.Types.TaskTypes (TaskInput, TaskResult)
+import Control.Distributed.Task.Util.ErrorHandling
+import Control.Distributed.Task.Util.Logging
 
 withEnv :: String -> String -> IO a -> IO a
 withEnv key value action = do

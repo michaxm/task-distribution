@@ -1,4 +1,4 @@
-module Util.Logging (logError, logWarn, logInfo, logDebug, logTrace, initLogging) where
+module Control.Distributed.Task.Util.Logging (logError, logWarn, logInfo, logDebug, logTrace, initLogging) where
 
 import System.IO (stdout)
 import qualified System.Log.Logger as L

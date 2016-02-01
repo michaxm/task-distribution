@@ -1,4 +1,4 @@
-module ClusterComputing.DataLocality (
+module Control.Distributed.Task.Distribution.DataLocality (
   findNodesWithData,
   -- visible for testing:
   nodeMatcher
@@ -11,8 +11,7 @@ import Data.Ord (comparing)
 import Prelude hiding (log)
 
 import qualified Control.Distributed.Task.DataAccess.HdfsListing as HDFS
-
-import Util.Logging
+import Control.Distributed.Task.Util.Logging
 
 {-
  Filters the given nodes to those with any of the file blocks, ordered by the number of file blocks (not regarding individual file block length).

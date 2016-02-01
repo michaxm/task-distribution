@@ -1,4 +1,4 @@
-module Util.FileUtil where
+module Control.Distributed.Task.Util.FileUtil where
 
 import Data.List (intersperse)
 import Data.List.Split (splitOn)

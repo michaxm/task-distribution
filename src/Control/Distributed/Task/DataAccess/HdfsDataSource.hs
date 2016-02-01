@@ -1,4 +1,4 @@
-module DataAccess.HdfsDataSource (loadEntries, copyToLocal) where
+module Control.Distributed.Task.DataAccess.HdfsDataSource (loadEntries, copyToLocal) where
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
@@ -12,11 +12,11 @@ import Network.Hadoop.Read
 import System.Directory (doesFileExist)
 import System.IO (IOMode(..), withBinaryFile)
 
-import Types.HdfsConfigTypes (HdfsConfig)
-import Types.TaskTypes (TaskInput)
-import Types.HdfsConfigTypes (HdfsLocation)
-import Util.ErrorHandling
-import Util.Logging
+import Control.Distributed.Task.Types.HdfsConfigTypes (HdfsConfig)
+import Control.Distributed.Task.Types.TaskTypes (TaskInput)
+import Control.Distributed.Task.Types.HdfsConfigTypes (HdfsLocation)
+import Control.Distributed.Task.Util.ErrorHandling
+import Control.Distributed.Task.Util.Logging
 
 loadEntries :: HdfsLocation -> IO TaskInput
 loadEntries hdfsLocation = do

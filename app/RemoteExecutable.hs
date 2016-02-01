@@ -1,6 +1,6 @@
 module RemoteExecutable (remoteExecutable) where
 
-import Types.TaskTypes
+import Control.Distributed.Task.Types.TaskTypes
 
 remoteExecutable :: Task
 remoteExecutable _ = []

@@ -1,4 +1,4 @@
-module TaskSpawning.ObjectCodeModuleDeployment (
+module Control.Distributed.Task.TaskSpawning.ObjectCodeModuleDeployment (
   loadObjectCode, codeExecutionOnSlave,
   -- visible for testing:
   buildLibs
@@ -11,10 +11,10 @@ import Data.Time.Clock (NominalDiffTime)
 import System.Directory (getHomeDirectory)
 import System.IO.Temp (withSystemTempDirectory)
 
+import Control.Distributed.Task.TaskSpawning.ExecutionUtil
+import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.Configuration
-import TaskSpawning.ExecutionUtil
-import Types.TaskTypes
-import Util.Logging
+import Control.Distributed.Task.Util.Logging
 
 loadObjectCode :: IO BL.ByteString
 loadObjectCode = do
