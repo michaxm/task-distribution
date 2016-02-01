@@ -75,7 +75,7 @@ expandDataSpec :: DataSpec -> IO [DataDef]
 expandDataSpec (HdfsDataSpec path depth filterPrefix) = do
   putStrLn $ "looking for files at " ++ path
   paths <- hdfsListFilesInSubdirsFiltering depth filterPrefix path
-  putStrLn $ "found " ++ (show paths)
+  putStrLn $ "found these input files: " ++ (show paths)
   return $ map HdfsData paths
 expandDataSpec (SimpleDataSpec numDBs) = return $ mkSimpleDataSpecs numDBs
   where
@@ -97,7 +97,7 @@ hdfsListFilesInSubdirsFiltering descendDepth fileNamePrefixFilter path = do
   initialFilePaths <- HDFS.listFiles path
   recursiveFiles <- recursiveDescent descendDepth path initialFilePaths
   logDebug $ "found: " ++ (show recursiveFiles)
-  return $ maybe recursiveFiles (\prefix -> filter ((prefix `isPrefixOf`) . getFileNamePart) recursiveFiles) fileNamePrefixFilter
+  return $ map trimSlashes $ maybe recursiveFiles (\prefix -> filter ((prefix `isPrefixOf`) . getFileNamePart) recursiveFiles) fileNamePrefixFilter
   where
     getFileNamePart path' = let parts = splitOn "/" path' in if null parts then "" else parts !! (length parts -1)
     recursiveDescent :: Int -> String -> [String] -> IO [String]
@@ -107,3 +107,7 @@ hdfsListFilesInSubdirsFiltering descendDepth fileNamePrefixFilter path = do
       pathsWithChildren <- mapM (\p -> (HDFS.listFiles p >>= \cs -> return (p, cs))) absolute :: IO [(String, [String])]
       descended <- mapM (\(p, cs) -> if null cs then return [p] else recursiveDescent (n-1) p cs) pathsWithChildren :: IO [[String]]
       return $ concat descended
+    trimSlashes :: String -> String
+    trimSlashes [] = [] -- hadoop-rpc does not work on /paths//with/double//slashes
+    trimSlashes ('/':'/':rest) = trimSlashes $ '/':rest
+    trimSlashes (x:rest) = x:(trimSlashes rest)

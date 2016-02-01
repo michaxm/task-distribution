@@ -90,7 +90,7 @@ isZippedSuffix = isSuffixOf ".gz"
 onFirst :: (a -> a') -> (a, b, c) -> (a', b, c)
 onFirst f (a, b, c) = (f a, b, c)
 
-loadData :: Configuration -> DataDef -> IO TaskResult
+loadData :: Configuration -> DataDef -> IO TaskInput
 loadData config (HdfsData hdfsLocation) = HDS.loadEntries (_hdfsConfig config, hdfsLocation)
 loadData _ (PseudoDB numDB) = SDS.loadEntries ("resources/pseudo-db/" ++ (show numDB)) -- TODO make relative path configurable?
 
