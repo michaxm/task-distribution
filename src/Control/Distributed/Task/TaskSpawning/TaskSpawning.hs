@@ -1,10 +1,12 @@
 module Control.Distributed.Task.TaskSpawning.TaskSpawning (
-  processTask, RunStat, TaskResultWrapper(..),
+  processTask, TaskResultWrapper(..),
   fullBinarySerializationOnMaster, executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment,
   serializedThunkSerializationOnMaster, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization,
   objectCodeSerializationOnMaster) where
 
+import Control.Concurrent.Async (async, wait)
 import qualified Data.ByteString.Lazy as BL
+import Data.List (intersperse)
 import qualified Language.Haskell.Interpreter as I
 
 import Control.Distributed.Task.DataAccess.DataSource (loadData)
@@ -31,38 +33,49 @@ executeSerializedThunkArg = "executeserializedthunk"
   Which of those depends on the distribution type, when external programs are spawned the former can be more efficient,
   but if there is no such intermediate step, a direct result is better.
 |-}
-processTask :: TaskDef -> DataDef -> ResultDef -> IO CompleteTaskResult
-processTask taskDef@(SourceCodeModule moduleName moduleContent) dataDef _ = do -- source code distribution behaves a bit different and only supports collectonmaster
-  logInfo $ "loading data for: "++describe dataDef
-  (taskInput, loadingDataDuration) <- measureDuration $ loadData dataDef
-  logInfo $ "applying data to task:"++describe taskDef
-  (result, executionDuration)  <- applySourceCodeTaskLogic taskInput
-  logDebug $ "returning result for " ++describe dataDef
-  return (result, (loadingDataDuration, executionDuration))
-  where
-    applySourceCodeTaskLogic taskInput = do
-      putStrLn "compiling task from source code"
-      taskFn <- loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
-      putStrLn "applying data"
-      (result, execDuration) <- measureDuration $ return $ taskFn taskInput
-      return (DirectResult result, execDuration)
-processTask taskDef dataDef resultDef = do
-  logInfo $ "spawning task for: "++describe dataDef
-  spawnExternalTask taskDef dataDef resultDef
+processTask :: TaskDef -> [DataDef] -> ResultDef -> IO [CompleteTaskResult]
+processTask (SourceCodeModule moduleName moduleContent) dataDefs _ = processSourceCodeTasks moduleName moduleContent dataDefs
+processTask taskDef dataDefs resultDef = do
+  logInfo $ "spawning task for: "++(concat $ intersperse ", " $ map describe dataDefs)
+  spawnExternalTask taskDef dataDefs resultDef
+
+{-|
+ Source code distribution behaves a bit different and only supports collectonmaster
+-}
+processSourceCodeTasks :: String -> String -> [DataDef] -> IO [CompleteTaskResult]
+processSourceCodeTasks moduleName moduleContent dataDefs = do
+  results <- mapM (async . runSourceCodeTask) dataDefs
+  mapM wait results
+    where
+      runSourceCodeTask :: DataDef -> IO CompleteTaskResult
+      runSourceCodeTask dataDef = do
+        logInfo $ "loading data for: "++describe dataDef
+        (taskInput, loadingDataDuration) <- measureDuration $ loadData dataDef
+        logInfo $ "applying data to task:"++moduleName
+        (result, executionDuration)  <- applySourceCodeTaskLogic taskInput
+        logDebug $ "returning result for " ++describe dataDef
+        return (result, (loadingDataDuration, executionDuration))
+        where
+          applySourceCodeTaskLogic taskInput = do
+            putStrLn "compiling task from source code"
+            taskFn <- loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
+            putStrLn "applying data"
+            (result, execDuration) <- measureDuration $ return $ taskFn taskInput
+            return (DirectResult result, execDuration)
 
 -- TODO additional measuring of the task loading (execution overhead): time for loading source code / complete execution time of external program with reported data load and exec times subtracted
 
-spawnExternalTask :: TaskDef -> DataDef -> ResultDef -> IO CompleteTaskResult
+spawnExternalTask :: TaskDef -> [DataDef] -> ResultDef -> IO [CompleteTaskResult]
 spawnExternalTask (SourceCodeModule _ _) _ _ = error "source code distribution is handled differently"
 -- Full binary deployment step 2/3: run within slave process to deploy the distributed task binary
-spawnExternalTask (DeployFullBinary program) dataDef resultDef =
-  DFB.deployAndRunFullBinary executeFullBinaryArg (IOHandling dataDef resultDef) program
-spawnExternalTask (PreparedDeployFullBinary hash) dataDef resultDef = do
+spawnExternalTask (DeployFullBinary program) dataDefs resultDef =
+  DFB.deployAndRunFullBinary executeFullBinaryArg (IOHandling dataDefs resultDef) program
+spawnExternalTask (PreparedDeployFullBinary hash) dataDefs resultDef = do
   filePath_ <- RemoteStore.get hash
-  maybe (error $ "no such program: "++show hash) (DFB.runExternalBinary [executeFullBinaryArg] (IOHandling dataDef resultDef)) filePath_
+  maybe (error $ "no such program: "++show hash) (DFB.runExternalBinary [executeFullBinaryArg] (IOHandling dataDefs resultDef)) filePath_
 -- Serialized thunk deployment step 2/3: run within slave process to deploy the distributed task binary
-spawnExternalTask (UnevaluatedThunk function program) dataDef resultDef =
-  DST.deployAndRunSerializedThunk executeSerializedThunkArg function (IOHandling dataDef resultDef) program
+spawnExternalTask (UnevaluatedThunk function program) dataDefs resultDef =
+  DST.deployAndRunSerializedThunk executeSerializedThunkArg function (IOHandling dataDefs resultDef) program
 -- Partial binary deployment step 2/2: receive distribution on slave, prepare input data, link object file and spawn slave process, read its output
 spawnExternalTask (ObjectCodeModule _) _ _ = error $ "not implemented right now" --DOC.codeExecutionOnSlave objectCode taskInput >>= return . (onFirst DirectResult) -- TODO switch to location ("Left")
 

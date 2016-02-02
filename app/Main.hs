@@ -85,10 +85,10 @@ parseMasterOpts args =
        ["discard"] -> Discard
        _ -> userSyntaxError $ "unknown result specification: " ++ args
 
-resultProcessor :: TaskResult -> IO ()
+resultProcessor :: [TaskResult] -> IO ()
 resultProcessor res = do
- putStrLn $ joinStrings "\n" $ map show res
- putStrLn $ "got " ++ (show $ length res) ++ " results in total"
+ putStrLn $ joinStrings "\n" $ map show $ concat res
+ putStrLn $ "got " ++ (show $ length $ concat res) ++ " results in total"
 
 joinStrings :: String -> [String] -> String
 joinStrings separator = concat . intersperse separator

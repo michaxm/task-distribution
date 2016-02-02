@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 module Control.Distributed.Task.Distribution.TaskDistribution (
   startSlaveNode,
   executeDistributed,
@@ -14,12 +13,13 @@ import qualified Control.Distributed.Process.Serializable as PS
 import qualified Control.Distributed.Static as S
 import Control.Distributed.Process.Closure (staticDecode)
 import Control.Distributed.Process.Node (initRemoteTable)
-import Control.Distributed.Process.Serializable (Serializable)
 import Control.Exception.Base (SomeException)
 import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
+import Data.Bool (bool)
 import Data.ByteString.Lazy (ByteString)
+import Data.List (intersperse)
 import qualified Data.Map.Strict as Map
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
@@ -128,65 +128,80 @@ startSlaveNode (host, port) = do
   putStrLn "initializing slave"
   startSlave backend
 
-executeDistributed :: (Serializable a) => NodeConfig -> TaskDef -> [DataDef] -> ResultDef -> ([a] -> IO ())-> IO ()
+executeDistributed :: NodeConfig -> TaskDef -> [DataDef] -> ResultDef -> ([TaskResult] -> IO ())-> IO ()
 executeDistributed (host, port) taskDef dataDefs resultDef resultProcessor = do
   backend <- initializeBackend host (show port) rtable
   startMaster backend $ \slaveNodes -> do
     result <- executeOnNodes taskDef dataDefs resultDef slaveNodes
     liftIO $ resultProcessor result
 
-executeOnNodes :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
+executeOnNodes :: TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [TaskResult]
 executeOnNodes taskDef dataDefs resultDef slaveNodes = do
   if null slaveNodes
     then say "no slaves => no results (ports open?)" >> return [] 
     else executeOnNodes' taskDef dataDefs resultDef slaveNodes
 
-executeOnNodes' :: (Serializable a) => TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [a]
+executeOnNodes' :: TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [TaskResult]
 executeOnNodes' taskDef dataDefs resultDef slaveNodes = do
   masterProcess <- getSelfPid
   config <- liftIO getConfiguration
   before <- liftIO getCurrentTime
-  taskResults <- distributeWorkForNodes masterProcess 1 (_distributionStrategy config) taskDef dataDefs resultDef slaveNodes
+  collectedResults <- distributeWorkForNodes masterProcess (_maxTasksPerNode config) (_distributionStrategy config) taskDef dataDefs resultDef slaveNodes
   after <- liftIO getCurrentTime
   say $ "total time: " ++ show (diffUTCTime after before)
-  mapM_ say $ map showRunStat $ snd taskResults
-  say $ showRunStat $ foldr aggregateStats emptyStat $ snd taskResults
-  return $ fst taskResults
-    where
-      emptyStat = ("all tasks", deserializeTimeDiff emptyDuration, RemoteRunStat emptyDuration emptyDuration emptyDuration)
-      emptyDuration = fromIntegral (0 :: Integer)
-      aggregateStats (_, t, RemoteRunStat a b c) (n, t', RemoteRunStat a' b' c') = (n, t+t', RemoteRunStat (a+a') (b+b') (c+c'))
+  let (pureResults, runStatistics) = splitStatistics collectedResults
+    in do
+    say $ printStatistics runStatistics
+    return $ pureResults
 
-type TaskRunStat = (String, NominalDiffTime, RemoteRunStat)
+type AggregatedResult = ([TaskResult], RunStatistics)
+type RunStatistics = (NominalDiffTime, NominalDiffTime, [SingleTaskRunStatistics])
 
-showRunStat :: TaskRunStat -> String
-showRunStat (n, totalTaskTime, remoteStat) =
-  n ++ ": total: " ++ (show totalTaskTime) ++ ", remote total: " ++ (show remoteTotal) ++ ", data load: " ++ (show dataLoadDur) ++ ", task exec: " ++ (show execTaskDur)
+splitStatistics :: [CollectedResult] -> AggregatedResult
+splitStatistics = foldr aggregateResults ([], emptyStats)
   where
-    remoteTotal = deserializeTimeDiff $ _remoteTotalDuration remoteStat
-    dataLoadDur = deserializeTimeDiff $ _remoteDataLoadDuration remoteStat
-    execTaskDur = deserializeTimeDiff $ _remoteExecTaskDuration remoteStat
+    emptyStats = (emptyDuration, emptyDuration, [])
+    emptyDuration = fromIntegral (0 :: Integer)
+    aggregateResults :: CollectedResult -> AggregatedResult -> AggregatedResult
+    aggregateResults collectedResult aggregatedResults = combine aggregatedResults $ toAggregatedResult collectedResult
+      where
+        combine :: AggregatedResult -> AggregatedResult -> AggregatedResult
+        combine (rs1, stats1) (rs2, stats2) = (rs1++rs2, combineStats stats1 stats2)
+          where
+            combineStats (d1, r1, ts1) (d2, r2, ts2) = (d1+d2, r1+r2, ts1++ts2)
+        toAggregatedResult :: CollectedResult -> AggregatedResult
+        toAggregatedResult (CollectedResult _ d r res) = (map fst res, (d, r, map toStats res))
+          where
+            toStats :: CollectedCompleteTaskResult -> SingleTaskRunStatistics
+            toStats = snd
+        
 
-type NodeOccupancy = Map.Map NodeId Int
+printStatistics :: RunStatistics -> String
+printStatistics = show -- TODO too lazy for now ...
+--  n ++ ": total: " ++ (show totalTaskTime) ++ ", remote total: " ++ (show remoteTotal) ++ ", data load: " ++ (show dataLoadDur) ++ ", task exec: " ++ (show execTaskDur)
+
+type NodeOccupancy = Map.Map NodeId Bool
 
 occupyNode :: NodeId -> NodeOccupancy -> NodeOccupancy
-occupyNode = Map.adjust (+1)
+occupyNode = Map.adjust (bool True $ error "node already occupied")
 
 unoccupyNode :: NodeId -> NodeOccupancy -> NodeOccupancy
-unoccupyNode = Map.adjust decrement
-  where decrement = flip (-) 1
+unoccupyNode = Map.adjust (flip bool False $ error "node already vacant")
+
+initializeOccupancy :: [NodeId] -> NodeOccupancy
+initializeOccupancy = foldr (flip Map.insert False) Map.empty
 
 {-|
  Tries to find work for every worker node, looking at all tasks, forgetting the node if no task is found.
 
- Note: tries to be open to other result types but assumes a list of results, as these can be concatenated over multiple tasks. Requires result entries to be serializable, not the
+ Note (obsolete, but may be reactivated): tries to be open to other result types but assumes a list of results, as these can be concatenated over multiple tasks. Requires result entries to be serializable, not the
   complete result - confusing this can cause devastatingly misleading compiler complaints about Serializable.
 |-}
-distributeWorkForNodes :: forall entry . (Serializable entry) => ProcessId -> Int -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process ([entry], [TaskRunStat])
-distributeWorkForNodes masterProcess maxTasksPerNode strategy taskDef dataDefs resultDef allNodes = doItFor ([], 0, foldr (flip Map.insert 0) Map.empty allNodes, dataDefs)
+distributeWorkForNodes :: ProcessId -> Int -> DistributionStrategy -> TaskDef -> [DataDef] -> ResultDef -> [NodeId] -> Process [CollectedResult]
+distributeWorkForNodes masterProcess maxTasksPerNode strategy taskDef dataDefs resultDef allNodes = doItFor ([], 0, initializeOccupancy allNodes, dataDefs)
   where
-    doItFor :: ([([entry], TaskRunStat)], Int, NodeOccupancy, [DataDef]) -> Process ([entry], [TaskRunStat])
-    doItFor (collected, 0, _, []) = return $ let (res, stat) = unzip collected in (concat $ reverse res, stat) -- everything processed
+    doItFor :: ([CollectedResult], Int, NodeOccupancy, [DataDef]) -> Process [CollectedResult]
+    doItFor (collected, 0, _, []) = return collected -- everything processed, results mainly in reversed order (a bit garbled)
     doItFor (collected, resultsWaitingOn, nodeOccupancy, []) = collectNextResult collected nodeOccupancy [] resultsWaitingOn -- everything distributed, but still results to be collected
     doItFor (collected, resultsWaitingOn, nodeOccupancy, undistributedTasks)
       | noFreeNodes nodeOccupancy = liftIO (logInfo $ "no unoccupied workers, wait results to come back: "++show nodeOccupancy)
@@ -194,63 +209,78 @@ distributeWorkForNodes masterProcess maxTasksPerNode strategy taskDef dataDefs r
       | otherwise = let freeNodes = nextFreeNodes nodeOccupancy
                         freeNode = if null freeNodes then error "no free nodes" else head freeNodes :: NodeId
                     in do
-       liftIO $ logInfo $ "finding a suitable task for the next unoccupied node: "++show freeNode++" - occupations: "++show nodeOccupancy
-       (suitableTask, remainingTasks) <- findSuitableTask strategy freeNode
-       maybe
-         (doItFor (collected, resultsWaitingOn, nodeOccupancy, remainingTasks)) -- no further work for this node available, discard it for distribution
-         (\t -> do -- regular distribution
-             say $ "spawning on: " ++ (show $ freeNode)
-             spawnSlaveProcess masterProcess taskDef t resultDef freeNode
-             doItFor (collected, resultsWaitingOn+1, occupyNode freeNode nodeOccupancy, remainingTasks))
-         suitableTask
+       liftIO $ logInfo $ "finding suitable tasks for the next unoccupied node: "++show freeNode++" - occupations: "++show nodeOccupancy
+       (suitableTasks, remainingTasks) <- findSuitableTasks strategy freeNode
+       if null suitableTasks
+         then error $ "nothing found to distribute, should not have tried in the first place then"
+         else do -- regular distribution
+           say $ "spawning on: " ++ (show $ freeNode)
+           spawnSlaveProcess masterProcess taskDef suitableTasks resultDef freeNode
+           doItFor (collected, resultsWaitingOn+1, occupyNode freeNode nodeOccupancy, remainingTasks)
       where
         noFreeNodes = null . nextFreeNodes
         nextFreeNodes :: NodeOccupancy -> [NodeId]
-        nextFreeNodes =  Map.keys . Map.filter (< maxTasksPerNode)
-        findSuitableTask :: DistributionStrategy -> NodeId -> Process (Maybe DataDef, [DataDef])
-        findSuitableTask AnywhereIsFine _ = return $ if null undistributedTasks then (Nothing, []) else (Just (head undistributedTasks), tail undistributedTasks)
-        findSuitableTask FirstTaskWithData freeNode = findSuitableTask' [] undistributedTasks
+        nextFreeNodes =  Map.keys . Map.filter not
+        findSuitableTasks :: DistributionStrategy -> NodeId -> Process ([DataDef], [DataDef])
+        findSuitableTasks AnywhereIsFine _ = return (take maxTasksPerNode undistributedTasks, drop maxTasksPerNode undistributedTasks)
+        findSuitableTasks FirstTaskWithData freeNode = if length undistributedTasks <= maxTasksPerNode then findSuitableTasks AnywhereIsFine freeNode else takeLocalTasks maxTasksPerNode [] [] undistributedTasks
           where
-            findSuitableTask' :: [DataDef] -> [DataDef] -> Process (Maybe DataDef, [DataDef])
-            findSuitableTask' notSuitable [] = return (Nothing, reverse notSuitable)
-            findSuitableTask' notSuitable (t:rest) = do
+            takeLocalTasks :: Int -> [DataDef] -> [DataDef] -> [DataDef] -> Process ([DataDef], [DataDef])
+            takeLocalTasks 0 found notSuitable rest = return (found, notSuitable++rest) -- enough found
+            takeLocalTasks n found notSuitable [] = return (found++(take n notSuitable), drop n notSuitable) -- everything searched, fill up
+            takeLocalTasks n found notSuitable (t:rest) = do
               allNodesSuitableForTask <- findNodesWithData' t
               if any (==freeNode) allNodesSuitableForTask
-                then return (Just t, reverse notSuitable ++ rest)
-                else findSuitableTask' (t:notSuitable) rest
+                then takeLocalTasks (n-1) (t:found) notSuitable rest
+                else takeLocalTasks (n-1) found (t:notSuitable) rest
               where
                 findNodesWithData' :: DataDef -> Process [NodeId]
                 findNodesWithData' (HdfsData loc) = liftIO $ findNodesWithData loc allNodes -- TODO this listing is not really efficient for this approach, caching necessary?
-                findNodesWithData' (PseudoDB _) = return allNodes -- no data locality strategy for simple pseudo db
+                findNodesWithData' (PseudoDB _) = return allNodes -- no data locality emulation support planned for simple pseudo db yet
+    collectNextResult :: [CollectedResult] -> NodeOccupancy -> [DataDef] -> Int -> Process [CollectedResult]
     collectNextResult collected nodeOccupancy undistributedTasks resultsWaitingOn = do
       say $ "waiting for a result"
-      (taskMetaData, maybeNextResult) <- collectSingle
-      say $ "got result from: " ++ (show $ _slaveNodeId taskMetaData)
-      let updatedResults = maybe collected (:collected) maybeNextResult in -- no restarts for failed tasks for now
-       doItFor (updatedResults, resultsWaitingOn-1, unoccupyNode (_slaveNodeId taskMetaData) nodeOccupancy, undistributedTasks)
+      collectedResult <- collectSingle
+      let taskMetaData = _collectedMetaData collectedResult
+          updatedResults = (collectedResult:collected) -- note: effectively scrambles result order a bit, but that should already be so due to parallel processing
+        in do
+        say $ "got result from: " ++ (show $ _slaveNodeId taskMetaData)
+        doItFor (updatedResults, resultsWaitingOn-1, unoccupyNode (_slaveNodeId taskMetaData) nodeOccupancy, undistributedTasks)
 
-collectSingle :: forall entry . (Serializable entry) => Process (TaskMetaData, Maybe ([entry], TaskRunStat))
+data CollectedResult = CollectedResult {
+  _collectedMetaData :: TaskMetaData,
+  _totalDistributedRuntime :: NominalDiffTime,
+  _totalRemoteRuntime :: NominalDiffTime,
+  _collectedResults :: [CollectedCompleteTaskResult]
+}
+type CollectedCompleteTaskResult = (TaskResult, SingleTaskRunStatistics)
+
+collectSingle :: Process CollectedResult
 collectSingle = receiveWait [
   match $ handleTransportedResult,
   matchAny $ \msg -> liftIO $ putStr " received unhandled  message : " >> print msg >> error "aborting due to unknown message type"
   ]
   where
-    handleTransportedResult (taskMetaData, nextResult) = do
+--    handleTransportedResult :: TransportedResult -> Process CollectedResult
+    handleTransportedResult (TransportedResult taskMetaData remoteRuntime serializedResults) = do
+      say $ "got task processing response for: "++_taskName taskMetaData
       now <- liftIO getCurrentTime
       let
         taskName = _taskName taskMetaData
-        in case nextResult of
-            (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (taskMetaData, Nothing)
-            (Right (taskResult, remoteRunStat)) -> say ("got a result for: "++taskName) >> return (taskMetaData, Just (taskResult, taskStats))
-              where
-                taskStats :: TaskRunStat
-                taskStats = (taskName, diffUTCTime now (deserializeTime $ _taskDistributionStartTime taskMetaData), remoteRunStat)
+        distributedTime = diffUTCTime now (deserializeTime $ _taskDistributionStartTime taskMetaData)
+        remoteRuntime' = deserializeTimeDiff remoteRuntime
+        in case serializedResults of
+            (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (CollectedResult taskMetaData distributedTime remoteRuntime' []) -- note: no restarts take place here
+            (Right results) -> return (CollectedResult taskMetaData distributedTime remoteRuntime' (map deserializeTaskResult results))
+        where
+          deserializeTaskResult :: SerializedCompleteTaskResult -> CollectedCompleteTaskResult
+          deserializeTaskResult (taskRes, (d, e)) = (taskRes, (deserializeTimeDiff d, deserializeTimeDiff e))
 
-spawnSlaveProcess :: ProcessId -> TaskDef -> DataDef -> ResultDef -> NodeId -> Process ()
-spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
+spawnSlaveProcess :: ProcessId -> TaskDef -> [DataDef] -> ResultDef -> NodeId -> Process ()
+spawnSlaveProcess masterProcess taskDef dataDefs resultDef slaveNode = do
   now <- liftIO getCurrentTime
   preparedTaskDef <- prepareSlaveForTask taskDef
-  taskTransport <- return $ TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDef slaveNode) slaveNode (serializeTime now)) preparedTaskDef dataDef resultDef
+  taskTransport <- return $ TaskTransport masterProcess (TaskMetaData (taskDescription taskDef dataDefs slaveNode) slaveNode (serializeTime now)) preparedTaskDef dataDefs resultDef
   _unusedSlaveProcessId <- spawn slaveNode (slaveTaskClosure taskTransport)
   return ()
   where
@@ -275,40 +305,41 @@ spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
 
 -- remote logic
 
--- task result is explicit here since post processing is dependant on that type
-type TransportedResult = (TaskMetaData, (Either String (TaskResult, RemoteRunStat)))
-
 handleSlaveTask :: TaskTransport -> Process ()
-handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDef resultDef) = do
-  handledResult <- (
+handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDefs resultDef) = do
+  transportedResult <- (
     do
       acceptTime <- liftIO getCurrentTime
       say $ "processing: " ++ taskName
-      result <- liftIO (processTask taskDef dataDef resultDef)
+      results <- liftIO (processTask taskDef dataDefs resultDef)
       say $ "processing done for: " ++ taskName
       processingDoneTime <- liftIO getCurrentTime
-      return $ Right $ bundleResultAndStats result acceptTime processingDoneTime
+      return $ prepareResultsForResponding taskMetaData acceptTime processingDoneTime results
     ) `catch` buildError
   say $ "replying"
-  send masterProcess ((taskMetaData, handledResult) :: TransportedResult)
+  send masterProcess (transportedResult :: TransportedResult)
+  say $ "reply sent"
   where
     taskName = _taskName taskMetaData
-    buildError :: SomeException -> Process (Either String a)
-    buildError e = return $ Left $ "Task execution (for: "++taskName++") failed: " ++ (format $ show e)
+    buildError :: SomeException -> Process TransportedResult
+    buildError e = return $ TransportedResult taskMetaData (fromIntegral (0 :: Integer)) $ Left $ "Task execution (for: "++taskName++") failed: " ++ (format $ show e)
       where
         format [] = []
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
 
-bundleResultAndStats :: CompleteTaskResult -> UTCTime -> UTCTime -> (TaskResult, RemoteRunStat)
-bundleResultAndStats (taskResult, runStat) acceptTime processingDoneTime =
-  case taskResult of
-      StoredRemote -> ([], serializedRunStat runStat)
-      (DirectResult plainResult) -> (plainResult, serializedRunStat runStat)
+prepareResultsForResponding :: TaskMetaData -> UTCTime -> UTCTime -> [CompleteTaskResult] -> TransportedResult
+prepareResultsForResponding metaData acceptTime processingDoneTime results =
+  TransportedResult metaData remoteRuntime $ Right $ map prepareSingleResult results
   where
-    serializedRunStat :: RunStat -> RemoteRunStat
-    serializedRunStat (d, e) =
-      RemoteRunStat (serializeTimeDiff $ diffUTCTime processingDoneTime acceptTime) (serializeTimeDiff d) (serializeTimeDiff e)
+    remoteRuntime = serializeTimeDiff $ diffUTCTime processingDoneTime acceptTime
+    prepareSingleResult :: CompleteTaskResult -> SerializedCompleteTaskResult
+    prepareSingleResult (taskResultWrapper, runStat) = case taskResultWrapper of
+      StoredRemote -> ([], serializedRunStat)
+      (DirectResult plainResult) -> (plainResult, serializedRunStat)
+      where
+        serializedRunStat :: SerializedSingleTaskRunStatistics
+        serializedRunStat = (serializeTimeDiff $ fst runStat, serializeTimeDiff $ snd runStat)
 
 -- preparation negotiaion
 
@@ -342,5 +373,5 @@ shutdownSlaveNodes (host, port) = do
     forM_ slaveNodes terminateSlave
     -- try terminateAllSlaves instead?
 
-taskDescription :: TaskDef -> DataDef -> NodeId -> String
-taskDescription t d n = "task: " ++ (describe t) ++ " " ++ (describe d) ++ " on " ++ (show n)
+taskDescription :: TaskDef -> [DataDef] -> NodeId -> String
+taskDescription t d n = "task: " ++ (describe t) ++ " " ++ (concat $ intersperse ", " $ map describe d) ++ " on " ++ (show n)

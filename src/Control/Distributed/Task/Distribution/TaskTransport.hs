@@ -9,12 +9,15 @@ import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 
 import Control.Distributed.Task.TaskSpawning.TaskDefinition
+import Control.Distributed.Task.Types.TaskTypes
+
+--- task execution
 
 data TaskTransport = TaskTransport {
   _masterProcess :: ProcessId,
   _taskMetaData :: TaskMetaData,
   _taskDef :: TaskDef,
-  _dataDef :: DataDef,
+  _dataDefs :: [DataDef],
   _resultDef :: ResultDef
   } deriving (Typeable, Generic)
 instance Binary TaskTransport
@@ -30,16 +33,18 @@ data TaskMetaData = TaskMetaData {
 instance Binary TaskMetaData
 instance Serializable TaskMetaData
 
-data RemoteRunStat = RemoteRunStat {
---  _remoteAcceptTime :: TimeStamp,
---  _remoteProcessingDoneTime :: TimeStamp,
-  _remoteTotalDuration :: Rational,
-  _remoteDataLoadDuration :: Rational,
---  _remoteTaskLoadDuration :: Rational,
-  _remoteExecTaskDuration :: Rational
+data TransportedResult = TransportedResult {
+  _resultMetaData :: TaskMetaData,
+  _remoteRuntime :: TotalRemoteRuntime,
+  _results :: Either String [SerializedCompleteTaskResult]
   } deriving (Typeable, Generic)
-instance Binary RemoteRunStat
-instance Serializable RemoteRunStat
+instance Binary TransportedResult
+instance Serializable TransportedResult
+type TotalRemoteRuntime = Rational
+type SerializedCompleteTaskResult = (TaskResult, SerializedSingleTaskRunStatistics)
+type SerializedSingleTaskRunStatistics = (Rational, Rational)
+
+--- task preparation
 
 type QuerySlavePreparationRequest = (ProcessId, Int)
 data QuerySlavePreparationResponse = Prepared | Unprepared deriving (Typeable, Generic)

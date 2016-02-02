@@ -1,5 +1,5 @@
 module Control.Distributed.Task.TaskSpawning.TaskSpawningTypes (
-  CompleteTaskResult, TaskResultWrapper(..), RunStat,
+  CompleteTaskResult, TaskResultWrapper(..), SingleTaskRunStatistics,
   IOHandling(..), packIOHandling, unpackIOHandling
   ) where
 
@@ -7,20 +7,25 @@ import Data.Time.Clock (NominalDiffTime)
 
 import Control.Distributed.Task.TaskSpawning.TaskDefinition
 import Control.Distributed.Task.Types.TaskTypes
+import Data.List (intersperse)
 import Data.List.Split (splitOn)
 
-type CompleteTaskResult = (TaskResultWrapper, RunStat)
+-- task results with runtime statistics
+
+type CompleteTaskResult = (TaskResultWrapper, SingleTaskRunStatistics)
 data TaskResultWrapper = DirectResult TaskResult | StoredRemote
-type RunStat = (NominalDiffTime, NominalDiffTime)
+type SingleTaskRunStatistics = (NominalDiffTime, NominalDiffTime)
 
+-- task communication
 
-data IOHandling = IOHandling DataDef ResultDef
+data IOHandling = IOHandling [DataDef] ResultDef
 
 packIOHandling :: IOHandling -> String
-packIOHandling (IOHandling dataDef resultDef) = (packDataDef dataDef)++"|"++(packResultDef resultDef)
+packIOHandling (IOHandling dataDefs resultDef) = (packResultDef resultDef)++"\n"++(concat $ intersperse "\n" $ map packDataDef dataDefs)
 unpackIOHandling :: String -> IOHandling
-unpackIOHandling s = let es = splitOnExpect 2 "|" s
-                     in IOHandling (unpackDataDef $ es !! 0) (unpackResultDef $ es !! 1)
+unpackIOHandling s = let sLines = lines s
+                         firstLine = if length sLines < 1 then error "empty io handling" else head sLines
+                     in IOHandling (map unpackDataDef $ tail sLines) (unpackResultDef firstLine)
 
 splitOnExpect :: Int -> String -> String -> [String]
 splitOnExpect len delim s = let es = splitOn delim s
@@ -36,7 +41,7 @@ unpackDataDef s = let es = splitOnExpect 2 ":" s
                   in case es !! 0 of
                   "HdfsData" -> HdfsData $ es !! 1
                   "PseudoDB" -> PseudoDB $ es !! 1
-                  str -> error $ "unknown value: " ++ str
+                  str -> error $ "unknown data source value: " ++ str
 
 packResultDef :: ResultDef -> String
 packResultDef ReturnAsMessage = "ReturnAsMessage"
@@ -52,4 +57,4 @@ unpackResultDef s = let es = splitOn ":" s
                        "HdfsResult" -> if length es /= 4
                                        then error $ "unknown segment amount"++s
                                        else HdfsResult (es !! 1) (es !! 2) (read $ es !! 3)
-                       str -> error $ "unknown value: " ++ str
+                       str -> error $ "unknown return action value: " ++ str

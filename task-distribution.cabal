@@ -68,6 +68,7 @@ library
                      , hadoop-rpc
                      , vector
                      , containers
+                     , async
   default-language:    Haskell2010
 
 executable example

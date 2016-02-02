@@ -84,7 +84,7 @@ parseResultStrict s = withErrorPrefix ("Cannot parse result: "++ (BLC.unpack s))
 
 executeExternal :: FilePath -> [String] -> IO String
 executeExternal executable args = do
-  logInfo $ "executing: " ++ executable ++ " " ++ (concat $ intersperse " " args)
+  logInfo $ "executing: " ++ executable ++ " " ++ (filter (/='\n') $ concat $ intersperse " " args)
   result <- withErrorAction logError ("Could not run [" ++ (show executable) ++ "] successfully: ") (readProcessWithExitCode executable args "")
   expectSuccess result
 

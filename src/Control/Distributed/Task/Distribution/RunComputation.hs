@@ -41,7 +41,7 @@ data DataSpec
   = SimpleDataSpec Int
   | HdfsDataSpec HdfsPath Int (Maybe String)
 data ResultSpec
-  = CollectOnMaster (TaskResult -> IO ())
+  = CollectOnMaster ([TaskResult] -> IO ())
   | StoreInHdfs String String
   | Discard
 
@@ -52,6 +52,7 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = d
   (resultDef, resultProcessor) <- return $ buildResultDef resultSpec
   executeDistributed (masterHost, masterPort) taskDef dataDefs resultDef resultProcessor
     where
+      buildResultDef :: ResultSpec -> (ResultDef, [TaskResult] -> IO ())
       buildResultDef (CollectOnMaster resultProcessor) = (ReturnAsMessage, resultProcessor)
       buildResultDef (StoreInHdfs outputPrefix outputSuffix) = (HdfsResult outputPrefix outputSuffix True, \_ -> putStrLn "result stored in hdfs")
       buildResultDef Discard = (ReturnOnlyNumResults, \num -> putStrLn $ (show num) ++ " results discarded")
