@@ -1,109 +1,89 @@
 module Control.Distributed.Task.TaskSpawning.DeployFullBinary (
   deployAndRunFullBinary, deployAndRunExternalBinary, fullBinaryExecution, runExternalBinary,
-  unpackDataModes, DataModes(..), InputMode(..), OutputMode(..), ZipOutput) where
+  packIOHandling, unpackIOHandling, IOHandling(..)
+  ) where
 
 import qualified Codec.Compression.GZip as GZip
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
 import Data.List.Split (splitOn)
-import Data.Time.Clock (NominalDiffTime)
-import System.FilePath ()
 import System.Process (readProcessWithExitCode)
 
+import Control.Distributed.Task.DataAccess.DataSource
 import Control.Distributed.Task.TaskSpawning.ExecutionUtil
-import Control.Distributed.Task.TaskSpawning.StreamToExecutableUtil
-import Control.Distributed.Task.Types.TaskTypes -- TODO ugly to be referenced explicitely here - generalization possible?
+import Control.Distributed.Task.TaskSpawning.TaskDefinition
+import Control.Distributed.Task.TaskSpawning.TaskDescription
+import Control.Distributed.Task.TaskSpawning.TaskSpawningTypes
+import Control.Distributed.Task.Types.TaskTypes
+import Control.Distributed.Task.Util.FileUtil
 import Control.Distributed.Task.Util.Logging
+import Control.Distributed.Task.Util.SerializationUtil
 
-data DataModes =
-  DataModes InputMode OutputMode
+deployAndRunFullBinary :: String -> IOHandling -> BL.ByteString -> IO CompleteTaskResult
+deployAndRunFullBinary mainArg = deployAndRunExternalBinary [mainArg]
 
-data InputMode
-  = FileInput
-  | StreamInput
+deployAndRunExternalBinary :: [String] -> IOHandling -> BL.ByteString -> IO CompleteTaskResult
+deployAndRunExternalBinary programBaseArgs ioHandling program =
+  withTempBLFile "distributed-program" program $ runExternalBinary programBaseArgs ioHandling
 
-data OutputMode
-  = FileOutput ZipOutput
-
-packDataModes :: DataModes -> String
-packDataModes (DataModes inputMode outputMode) = (packInputMode inputMode)++"|"++(packOutputMode outputMode)
-unpackDataModes :: String -> DataModes
-unpackDataModes s = let es = splitOn "|" s
-                    in if (length es) /= 2
-                       then error $ "unknown value: " ++ s
-                       else DataModes (unpackInputMode $ es !! 0) (unpackOutputMode $ es !! 1)
-
-packInputMode :: InputMode -> String
-packInputMode FileInput = "FileInput"
-packInputMode StreamInput = "StreamInput"
-unpackInputMode :: String -> InputMode
-unpackInputMode "FileInput" = FileInput
-unpackInputMode "StreamInput" = StreamInput
-unpackInputMode s = error $ "unknown value: " ++ s
-packOutputMode :: OutputMode -> String
-packOutputMode (FileOutput z) = "FileOutput" ++ (if z then ":zipped" else "")
-unpackOutputMode :: String -> OutputMode
-unpackOutputMode "FileOutput" = FileOutput False
-unpackOutputMode "FileOutput:zipped" = FileOutput True
-unpackOutputMode s = let es = splitOn ":" s
-                     in case es of
-                     ["FileOutput"] -> FileOutput False
-                     ["FileOutput", "zipped"] -> FileOutput True
-                     _ -> error $ "unknown value: " ++ s
-
-type ZipOutput = Bool
-
-deployAndRunFullBinary :: DataModes -> String -> BL.ByteString -> TaskInput -> IO (FilePath, NominalDiffTime, NominalDiffTime)
-deployAndRunFullBinary dataModes mainArg = deployAndRunExternalBinary dataModes [mainArg]
-
-deployAndRunExternalBinary :: DataModes -> [String] -> BL.ByteString -> TaskInput -> IO (FilePath, NominalDiffTime, NominalDiffTime)
-deployAndRunExternalBinary dataModes programBaseArgs program taskInput = do
-  ((res, execDur), totalDur) <- measureDuration $ withTempBLFile "distributed-program" program $ runExternalBinary dataModes programBaseArgs taskInput
-  return (res, (totalDur - execDur), execDur)
-
-runExternalBinary :: DataModes -> [String] -> TaskInput -> FilePath -> IO (FilePath, NominalDiffTime)
-runExternalBinary dataModes@(DataModes inputMode _) programBaseArgs taskInput filePath = do
-  readProcessWithExitCode "chmod" ["+x", filePath] "" >>= expectSilentSuccess
-  putStrLn $ "running " ++ filePath ++ "... "
-  ((stdOut, outFilePath), execDur) <- measureDuration $ runExternalBinaryForInputMode inputMode (programBaseArgs++[packDataModes dataModes]) taskInput filePath
-  putStrLn $ "... run completed"
-  logDebug stdOut
-  return (outFilePath, execDur)
-
-runExternalBinaryForInputMode :: InputMode -> [String] -> TaskInput -> FilePath -> IO (String, FilePath)
-runExternalBinaryForInputMode FileInput programBaseArgs taskInput filePath = do
-  withTempBLCFile "distributed-program-data" (serializeTaskInput taskInput) (
-    \taskInputFilePath -> do
-      taskOutputFilePath <- return $ taskInputFilePath ++ ".out"
-      -- note: although it seems a bit fishy, read/show serialization between ByteString and String seems to be working just fine for the serialized closure
-      processOutput <- executeExternal filePath (programBaseArgs ++ [taskInputFilePath, taskOutputFilePath])
-      return (processOutput, taskOutputFilePath)
-    )
-runExternalBinaryForInputMode StreamInput programBaseArgs taskInput filePath = do
-  taskOutputFilePath <- createTempFilePath "distributed-program-task.out"
-  res <- executeExternalWritingToStdIn filePath (programBaseArgs ++ ["", taskOutputFilePath]) taskInput
-  return (res, taskOutputFilePath)
+ -- should setting the executable flag rather be a part of the binary storage?
+runExternalBinary :: [String] -> IOHandling -> FilePath -> IO CompleteTaskResult
+runExternalBinary programBaseArgs ioHandling executablePath = do
+  readProcessWithExitCode "chmod" ["+x", executablePath] "" >>= expectSilentSuccess
+  logInfo $ "running: "++executablePath
+  processOutput <- executeExternal executablePath (programBaseArgs ++ [packIOHandling ioHandling])
+  return $ parseResult processOutput
 
 {-|
  Some methods parse the contents of stdout, thus these will fail in the case of logging to it (only ERROR at the moment).
 |-}
-fullBinaryExecution :: DataModes -> (TaskInput -> TaskResult) -> FilePath -> FilePath ->  IO ()
-fullBinaryExecution (DataModes inputMode outputMode) function taskInputFilePath taskOutputFilePath = do
-  logInfo $ "reading data from: " ++ taskInputFilePath
-  taskInput <- getInput inputMode
+fullBinaryExecution :: IOHandling -> (TaskInput -> TaskResult) -> IO ()
+fullBinaryExecution (IOHandling dataDef resultDef) function = do
+  logInfo $ "reading data for: "++describe dataDef
+  (taskInput, dataLoadTime) <- measureDuration $ loadData dataDef
   logTrace $ show $ taskInput
   logInfo $ "calculating result"
-  result <- return $ function taskInput
+  (result, execTime) <- measureDuration $! return $ function taskInput
   logTrace $ "printing result: " ++ show result
-  writeData outputMode result
-  logInfo $ "stored result"
+  returnResult resultDef result (dataLoadTime, execTime)
+  logInfo $ "returned result"
   where
-    getInput FileInput = do
-      fileContents <- BLC.readFile taskInputFilePath
-      logTrace $ show fileContents
-      deserializeTaskInput fileContents
-    getInput StreamInput = readStdTillEOF
-    writeData :: OutputMode -> [BL.ByteString] -> IO ()
-    writeData (FileOutput z) = (>> logInfo ("wrote result to file: "++taskOutputFilePath)) . BL.writeFile taskOutputFilePath . (if z then GZip.compress else id) . BLC.concat . intersperse (BLC.pack "\n")
+    returnResult :: ResultDef -> TaskResult -> RunStat -> IO ()
+    returnResult ReturnAsMessage taskResult runStat = writeResult (DirectResult taskResult, runStat)
+    returnResult ReturnOnlyNumResults taskResult runStat = writeResult (DirectResult [BLC.pack $ show $ length taskResult], runStat)
+    returnResult (HdfsResult pre suf z) taskResult runStat = writeToHdfs >> writeResult (StoredRemote, runStat)
+      where
+        hdfsPath (HdfsData p) = pre++"/"++p++"/"++suf
+        hdfsPath _ = error "implemented only for hdfs output"
+        writeToHdfs = do
+          logInfo $ "copying result to: "++hdfsPath dataDef
+          withTempBLCFile "move-to-hdfs" fileContent $ \tempFileName ->
+            let (dirPart, filePart) = splitBasePath $ hdfsPath dataDef
+            in copyToHdfs tempFileName dirPart filePart
+          where
+            fileContent = (if z then GZip.compress else id) $ BLC.concat $ intersperse (BLC.pack "\n") taskResult
+            copyToHdfs localFile destPath destFilename = do
+              _ <- executeExternal "hdfs" ["dfs", "-mkdir", "-p", destPath]
+              executeExternal "hdfs" ["dfs", "-copyFromLocal", localFile, destPath ++ "/" ++ destFilename]
 
+writeResult :: CompleteTaskResult -> IO ()
+writeResult (DirectResult res, runStat) = putStrLn ("DirectResult|"++packRunStat runStat) >> mapM_ (putStrLn . BLC.unpack) res
+writeResult (StoredRemote, runStat) = putStrLn $ "StoredRemote|"++show runStat
+
+parseResult :: String -> CompleteTaskResult
+parseResult result  =
+  let resLines = lines result
+      firstLine = if length resLines < 1 then error "empty result" else head resLines
+  in let es = splitOn "|" firstLine
+     in if (length es) /= 2
+        then error $ "unknown value: "++firstLine
+        else case es !! 0 of
+              "StoredRemote" -> (StoredRemote, unpackRunStat $ es !! 1)
+              "DirectResult" -> (DirectResult (map BLC.pack (tail resLines)), unpackRunStat $ es !! 1)
+              _ -> error $ "no parse for result type: "++firstLine
+
+packRunStat :: RunStat -> String
+packRunStat (a, b) = show $ (serializeTimeDiff a, serializeTimeDiff b)
+unpackRunStat :: String -> RunStat
+unpackRunStat s = let (a, b) = read s in (deserializeTimeDiff a, deserializeTimeDiff b)

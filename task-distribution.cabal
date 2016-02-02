@@ -25,23 +25,25 @@ library
   other-modules:       Control.Distributed.Task.Distribution.TaskTransport
                      , Control.Distributed.Task.Distribution.DataLocality
                      , Control.Distributed.Task.TaskSpawning.TaskSpawning
+                     , Control.Distributed.Task.TaskSpawning.TaskSpawningTypes
                      , Control.Distributed.Task.TaskSpawning.TaskDefinition
                      , Control.Distributed.Task.TaskSpawning.TaskDescription
                      , Control.Distributed.Task.TaskSpawning.ExecutionUtil
-                     , Control.Distributed.Task.TaskSpawning.StreamToExecutableUtil
                      , Control.Distributed.Task.TaskSpawning.BinaryStorage
                      , Control.Distributed.Task.TaskSpawning.SourceCodeExecution
                      , Control.Distributed.Task.TaskSpawning.DeployFullBinary
                      , Control.Distributed.Task.TaskSpawning.DeploySerializedThunk
                      , Control.Distributed.Task.TaskSpawning.FunctionSerialization
                      , Control.Distributed.Task.TaskSpawning.ObjectCodeModuleDeployment
+                     , Control.Distributed.Task.DataAccess.DataSource
                      , Control.Distributed.Task.DataAccess.SimpleDataSource
                      , Control.Distributed.Task.DataAccess.HdfsDataSource
                      , Control.Distributed.Task.DataAccess.HdfsListing
-                     , Control.Distributed.Task.Util.ErrorHandling
-                     , Control.Distributed.Task.Util.Logging
-                     , Control.Distributed.Task.Util.FileUtil
                      , Control.Distributed.Task.Util.Configuration
+                     , Control.Distributed.Task.Util.ErrorHandling
+                     , Control.Distributed.Task.Util.FileUtil
+                     , Control.Distributed.Task.Util.Logging
+                     , Control.Distributed.Task.Util.SerializationUtil
   ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
   build-depends:       base >= 4.7 && < 5
                      , hint

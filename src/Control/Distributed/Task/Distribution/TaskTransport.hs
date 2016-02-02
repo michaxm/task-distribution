@@ -5,8 +5,6 @@ import Control.Distributed.Process (ProcessId, NodeId)
 import Control.Distributed.Process.Serializable (Serializable)
 import Data.Binary (Binary)
 import Data.ByteString.Lazy (ByteString)
-import Data.Time.Calendar (Day(..))
-import Data.Time.Clock (UTCTime(..), NominalDiffTime)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 
@@ -37,23 +35,11 @@ data RemoteRunStat = RemoteRunStat {
 --  _remoteProcessingDoneTime :: TimeStamp,
   _remoteTotalDuration :: Rational,
   _remoteDataLoadDuration :: Rational,
-  _remoteTaskLoadDuration :: Rational,
+--  _remoteTaskLoadDuration :: Rational,
   _remoteExecTaskDuration :: Rational
   } deriving (Typeable, Generic)
 instance Binary RemoteRunStat
 instance Serializable RemoteRunStat
-
-serializeTime :: UTCTime -> TimeStamp
-serializeTime (UTCTime (ModifiedJulianDay d) f) = (d, toRational f)
-
-deserializeTime :: TimeStamp -> UTCTime
-deserializeTime (d, f) = UTCTime (ModifiedJulianDay d) (fromRational f)
-
-serializeTimeDiff :: NominalDiffTime -> Rational
-serializeTimeDiff = toRational
-
-deserializeTimeDiff :: Rational -> NominalDiffTime
-deserializeTimeDiff = fromRational
 
 type QuerySlavePreparationRequest = (ProcessId, Int)
 data QuerySlavePreparationResponse = Prepared | Unprepared deriving (Typeable, Generic)

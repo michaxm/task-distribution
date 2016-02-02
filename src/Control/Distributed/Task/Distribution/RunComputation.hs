@@ -1,13 +1,13 @@
 module Control.Distributed.Task.Distribution.RunComputation (
   MasterOptions(..),
   TaskSpec(..),
-  InputMode(..),
   DataSpec(..),
   ResultSpec(..),
   runMaster) where
 
 import Data.List (isPrefixOf)
 import Data.List.Split (splitOn)
+import System.Directory (getDirectoryContents) -- being renamed to listDirectory
 import System.Environment (getExecutablePath)
 
 import qualified Control.Distributed.Task.DataAccess.HdfsListing as HDFS
@@ -16,6 +16,7 @@ import Control.Distributed.Task.TaskSpawning.TaskSpawning (fullBinarySerializati
 import Control.Distributed.Task.TaskSpawning.TaskDefinition
 import Control.Distributed.Task.Types.HdfsConfigTypes
 import Control.Distributed.Task.Types.TaskTypes
+import Control.Distributed.Task.Util.Configuration
 import Control.Distributed.Task.Util.Logging
 
 data MasterOptions = MasterOptions {
@@ -33,10 +34,9 @@ data MasterOptions = MasterOptions {
 -}
 data TaskSpec
  = SourceCodeSpec String
- | FullBinaryDeployment InputMode
+ | FullBinaryDeployment
  | SerializedThunk (TaskInput -> TaskResult)
  | ObjectCodeModuleDeployment (TaskInput -> TaskResult)
-data InputMode = File | Stream
 data DataSpec
   = SimpleDataSpec Int
   | HdfsDataSpec HdfsPath Int (Maybe String)
@@ -53,23 +53,19 @@ runMaster (MasterOptions masterHost masterPort taskSpec dataSpec resultSpec) = d
   executeDistributed (masterHost, masterPort) taskDef dataDefs resultDef resultProcessor
     where
       buildResultDef (CollectOnMaster resultProcessor) = (ReturnAsMessage, resultProcessor)
-      buildResultDef (StoreInHdfs outputPrefix outputSuffix) = (HdfsResult outputPrefix outputSuffix, \_ -> putStrLn "result stored in hdfs")
+      buildResultDef (StoreInHdfs outputPrefix outputSuffix) = (HdfsResult outputPrefix outputSuffix True, \_ -> putStrLn "result stored in hdfs")
       buildResultDef Discard = (ReturnOnlyNumResults, \num -> putStrLn $ (show num) ++ " results discarded")
 
 buildTaskDef :: TaskSpec -> IO TaskDef
 buildTaskDef (SourceCodeSpec modulePath) = do
   moduleContent <- readFile modulePath
   return $ mkSourceCodeModule modulePath moduleContent
-buildTaskDef (FullBinaryDeployment inputMode) =
-  getExecutablePath >>= fullBinarySerializationOnMaster (convertInputMode inputMode)
+buildTaskDef FullBinaryDeployment =
+  getExecutablePath >>= fullBinarySerializationOnMaster
 buildTaskDef (SerializedThunk function) = do
   selfPath <- getExecutablePath
   serializedThunkSerializationOnMaster selfPath function
 buildTaskDef (ObjectCodeModuleDeployment _) = objectCodeSerializationOnMaster
-
-convertInputMode :: InputMode -> TaskInputMode
-convertInputMode File = FileInput
-convertInputMode Stream = StreamInput
 
 expandDataSpec :: DataSpec -> IO [DataDef]
 expandDataSpec (HdfsDataSpec path depth filterPrefix) = do
@@ -77,11 +73,10 @@ expandDataSpec (HdfsDataSpec path depth filterPrefix) = do
   paths <- hdfsListFilesInSubdirsFiltering depth filterPrefix path
   putStrLn $ "found these input files: " ++ (show paths)
   return $ map HdfsData paths
-expandDataSpec (SimpleDataSpec numDBs) = return $ mkSimpleDataSpecs numDBs
-  where
-    mkSimpleDataSpecs :: Int -> [DataDef]
-    mkSimpleDataSpecs 0 = []
-    mkSimpleDataSpecs n = PseudoDB n : (mkSimpleDataSpecs (n-1))
+expandDataSpec (SimpleDataSpec numTasks) = do
+  config <- getConfiguration
+  files <- getDirectoryContents (_pseudoDBPath config)
+  return $ take numTasks $ map PseudoDB files
 
 mkSourceCodeModule :: String -> String -> TaskDef
 mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleName modulePath) moduleContent

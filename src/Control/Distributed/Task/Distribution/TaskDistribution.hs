@@ -20,7 +20,6 @@ import Control.Monad (forM_)
 import Control.Monad.IO.Class
 import qualified Data.Binary as B (encode)
 import Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.Map.Strict as Map
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
 import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
@@ -31,12 +30,12 @@ import Control.Distributed.Task.Distribution.TaskTransport
 import qualified Control.Distributed.Task.TaskSpawning.BinaryStorage as RemoteStore
 import Control.Distributed.Task.TaskSpawning.TaskDefinition
 import Control.Distributed.Task.TaskSpawning.TaskDescription
-import Control.Distributed.Task.TaskSpawning.ExecutionUtil (measureDuration, executeExternal, parseResultStrict)
-import Control.Distributed.Task.TaskSpawning.TaskSpawning (processTask, RunStat, TaskResultWrapper(..))
+import Control.Distributed.Task.TaskSpawning.TaskSpawning (processTask)
+import Control.Distributed.Task.TaskSpawning.TaskSpawningTypes
 import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.Configuration
-import Control.Distributed.Task.Util.FileUtil
 import Control.Distributed.Task.Util.Logging
+import Control.Distributed.Task.Util.SerializationUtil
 
 {-
  The bits in this file are arranged so that the less verbose Template Haskell version would work. That version is not used due to incompability
@@ -154,19 +153,18 @@ executeOnNodes' taskDef dataDefs resultDef slaveNodes = do
   say $ showRunStat $ foldr aggregateStats emptyStat $ snd taskResults
   return $ fst taskResults
     where
-      emptyStat = ("all tasks", deserializeTimeDiff emptyDuration, RemoteRunStat emptyDuration emptyDuration emptyDuration emptyDuration)
+      emptyStat = ("all tasks", deserializeTimeDiff emptyDuration, RemoteRunStat emptyDuration emptyDuration emptyDuration)
       emptyDuration = fromIntegral (0 :: Integer)
-      aggregateStats (_, t, RemoteRunStat a b c d) (n, t', RemoteRunStat a' b' c' d') = (n, t+t', RemoteRunStat (a+a') (b+b') (c+c') (d+d'))
+      aggregateStats (_, t, RemoteRunStat a b c) (n, t', RemoteRunStat a' b' c') = (n, t+t', RemoteRunStat (a+a') (b+b') (c+c'))
 
 type TaskRunStat = (String, NominalDiffTime, RemoteRunStat)
 
 showRunStat :: TaskRunStat -> String
 showRunStat (n, totalTaskTime, remoteStat) =
-  n ++ ": total: " ++ (show totalTaskTime) ++ ", remote total: " ++ (show remoteTotal) ++ ", data load: " ++ (show dataLoadDur) ++ ", task load: " ++ (show taskLoadDur) ++ ", task exec: " ++ (show execTaskDur)
+  n ++ ": total: " ++ (show totalTaskTime) ++ ", remote total: " ++ (show remoteTotal) ++ ", data load: " ++ (show dataLoadDur) ++ ", task exec: " ++ (show execTaskDur)
   where
     remoteTotal = deserializeTimeDiff $ _remoteTotalDuration remoteStat
     dataLoadDur = deserializeTimeDiff $ _remoteDataLoadDuration remoteStat
-    taskLoadDur = deserializeTimeDiff $ _remoteTaskLoadDuration remoteStat
     execTaskDur = deserializeTimeDiff $ _remoteExecTaskDuration remoteStat
 
 type NodeOccupancy = Map.Map NodeId Int
@@ -257,7 +255,7 @@ spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
   return ()
   where
     prepareSlaveForTask :: TaskDef -> Process TaskDef
-    prepareSlaveForTask (DeployFullBinary program inputMode) = do
+    prepareSlaveForTask (DeployFullBinary program) = do
       hash <- return $ RemoteStore.calculateHash program
       say $ "preparing for " ++ (show hash)
       _ <- spawn slaveNode (querySlavePreparationClosure (masterProcess, hash))
@@ -272,7 +270,7 @@ spawnSlaveProcess masterProcess taskDef dataDef resultDef slaveNode = do
          after <- liftIO getCurrentTime
          case ok of
           PreparationFinished -> say $ "distribution took: " ++ (show $ diffUTCTime after before)
-      return $ PreparedDeployFullBinary hash inputMode
+      return $ PreparedDeployFullBinary hash
     prepareSlaveForTask d = return d -- nothing to prepare for other tasks (for now)
 
 -- remote logic
@@ -289,7 +287,7 @@ handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDef result
       result <- liftIO (processTask taskDef dataDef resultDef)
       say $ "processing done for: " ++ taskName
       processingDoneTime <- liftIO getCurrentTime
-      liftIO (handleSlaveResult dataDef resultDef result acceptTime processingDoneTime) >>= return . Right
+      return $ Right $ bundleResultAndStats result acceptTime processingDoneTime
     ) `catch` buildError
   say $ "replying"
   send masterProcess ((taskMetaData, handledResult) :: TransportedResult)
@@ -302,38 +300,15 @@ handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDef result
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
 
-handleSlaveResult :: DataDef -> ResultDef -> (TaskResultWrapper, RunStat) -> UTCTime -> UTCTime -> IO (TaskResult, RemoteRunStat)
-handleSlaveResult dataDef resultDef (taskResult, runStat) acceptTime processingDoneTime = do
-  res <- handleResult
-  return (res, serializedRunStat runStat)
+bundleResultAndStats :: CompleteTaskResult -> UTCTime -> UTCTime -> (TaskResult, RemoteRunStat)
+bundleResultAndStats (taskResult, runStat) acceptTime processingDoneTime =
+  case taskResult of
+      StoredRemote -> ([], serializedRunStat runStat)
+      (DirectResult plainResult) -> (plainResult, serializedRunStat runStat)
   where
-    serializedRunStat (d, t, e) =
-      RemoteRunStat (serializeTimeDiff $ diffUTCTime processingDoneTime acceptTime) (serializeTimeDiff d) (serializeTimeDiff t) (serializeTimeDiff e)
-    handleResult :: IO TaskResult
-    handleResult = case taskResult of
-      (DirectResult plainResult) -> handlePlainResult dataDef resultDef plainResult
-      (ReadFromFile resultFilePath) -> handleFileResult dataDef resultDef resultFilePath
-      Empty -> return []
-      where
-        handlePlainResult :: DataDef -> ResultDef -> TaskResult -> IO TaskResult
-        handlePlainResult _ ReturnAsMessage plainResult = return plainResult
-        handlePlainResult _ (HdfsResult _ _) _ = error "storage of a plain result (some distribution methods) to hdfs currently not supported"
-        handlePlainResult _ ReturnOnlyNumResults plainResult = return $ [BLC.pack $ show $ length plainResult]
-        handleFileResult (HdfsData _) ReturnAsMessage resultFilePath = logInfo ("Reading result from file: "++resultFilePath) >> readResultFromFile resultFilePath
-        handleFileResult _ ReturnAsMessage resultFilePath = readResultFromFile resultFilePath
-        handleFileResult _ ReturnOnlyNumResults _ = error "not implemented for only returning numbers"
-        handleFileResult (HdfsData path) (HdfsResult outputPrefix outputSuffix) resultFilePath = wrapHdfsAction $ copyToHdfs resultFilePath (outputPrefix++restpath) (filename'++outputSuffix)
-          where (restpath, filename') = splitBasePath path
-        handleFileResult _ (HdfsResult _ _) _ = error "storage to hdfs with other data source than hdfs currently not supported"
-        wrapHdfsAction writeAction = do
-          (_, storeDur) <- measureDuration $ writeAction
-          putStrLn $ "stored result data in: " ++ (show storeDur)
-          return []
-        copyToHdfs localFile destPath destFilename = do
-          _ <- executeExternal "hdfs" ["dfs", "-mkdir", "-p", destPath]
-          executeExternal "hdfs" ["dfs", "-copyFromLocal", localFile, destPath ++ "/" ++ destFilename]
-        readResultFromFile :: FilePath -> IO TaskResult
-        readResultFromFile f = BLC.readFile f >>= parseResultStrict
+    serializedRunStat :: RunStat -> RemoteRunStat
+    serializedRunStat (d, e) =
+      RemoteRunStat (serializeTimeDiff $ diffUTCTime processingDoneTime acceptTime) (serializeTimeDiff d) (serializeTimeDiff e)
 
 -- preparation negotiaion
 

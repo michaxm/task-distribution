@@ -11,7 +11,7 @@ data Configuration = Configuration {
   _libLocation :: FilePath,
   _ghcVersion :: String,
   _hdfsConfig :: HdfsConfig,
-  _thriftConfig :: HdfsConfig,
+  _pseudoDBPath :: FilePath,
   _distributionStrategy :: DistributionStrategy,
   _taskLogFile :: FilePath
   }
@@ -23,7 +23,7 @@ data DistributionStrategy
 getConfiguration :: IO Configuration
 getConfiguration = readFile "etc/config" >>= return . parseConfig
   where
-    parseConfig conf = Configuration (f "relative-object-codepath") (f "lib-location") (f "ghc-version") (readHdfs $ f "hdfs") (readHdfs $ f "thrift") (readStrat $ f "distribution-strategy") (f "task-log-file")
+    parseConfig conf = Configuration (f "relative-object-codepath") (f "lib-location") (f "ghc-version") (readHdfs $ f "hdfs") ("pseudo-db-path") (readStrat $ f "distribution-strategy") (f "task-log-file")
       where
         f = getConfig conf
         readStrat s = case s of

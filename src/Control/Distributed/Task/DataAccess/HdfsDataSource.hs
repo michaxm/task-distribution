@@ -1,30 +1,38 @@
-module Control.Distributed.Task.DataAccess.HdfsDataSource (loadEntries, copyToLocal) where
+module Control.Distributed.Task.DataAccess.HdfsDataSource (supplyPathWithConfig, loadEntries, copyToLocal) where
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
-import Data.Hadoop.Configuration
-import Data.Hadoop.Types
+import qualified Codec.Compression.GZip as GZip
+import qualified Data.Hadoop.Configuration as HDFS
+import qualified Data.Hadoop.Types as HDFS
+import Data.List (isSuffixOf)
 import qualified Data.Text as T
 import Network.Hadoop.Hdfs
 import Network.Hadoop.Read
 import System.Directory (doesFileExist)
 import System.IO (IOMode(..), withBinaryFile)
 
-import Control.Distributed.Task.Types.HdfsConfigTypes (HdfsConfig)
 import Control.Distributed.Task.Types.TaskTypes (TaskInput)
-import Control.Distributed.Task.Types.HdfsConfigTypes (HdfsLocation)
+import Control.Distributed.Task.Types.HdfsConfigTypes
+import Control.Distributed.Task.Util.Configuration
 import Control.Distributed.Task.Util.ErrorHandling
 import Control.Distributed.Task.Util.Logging
+
+supplyPathWithConfig :: HdfsPath -> IO HdfsLocation
+supplyPathWithConfig p = do
+  config <- getConfiguration
+  return (_hdfsConfig config, p)
 
 loadEntries :: HdfsLocation -> IO TaskInput
 loadEntries hdfsLocation = do
   logInfo $ "loading: " ++ targetDescription
-  withErrorPrefix ("Error accessing "++ targetDescription) doLoad >>= return . BLC.lines
+  withErrorPrefix ("Error accessing "++ targetDescription) doLoad >>= return . BLC.lines . unzipIfNecessary
   where
     targetDescription = show hdfsLocation
     doLoad = readHdfsFile hdfsLocation
+    unzipIfNecessary = if ".gz" `isSuffixOf` (snd hdfsLocation) then GZip.decompress else id
 
 readHdfsFile :: HdfsLocation -> IO BL.ByteString
 readHdfsFile (hdfsConfig, path) = do
@@ -37,12 +45,12 @@ readHdfsFile (hdfsConfig, path) = do
     readerAction :: [B.ByteString] -> BC.ByteString -> IO [B.ByteString]
     readerAction collected nextChunk = return $ nextChunk:collected
 
-buildConfig :: HdfsConfig -> IO HadoopConfig
+buildConfig :: HdfsConfig -> IO HDFS.HadoopConfig
 buildConfig (host, port) = do
-  user <- getHadoopUser
-  return $ HadoopConfig user [(Endpoint (T.pack host) port)] Nothing
+  user <- HDFS.getHadoopUser
+  return $ HDFS.HadoopConfig user [(HDFS.Endpoint (T.pack host) port)] Nothing
 
-readAllChunks :: ([B.ByteString] -> BC.ByteString -> IO [B.ByteString]) -> HadoopConfig -> String -> IO [B.ByteString]
+readAllChunks :: ([B.ByteString] -> BC.ByteString -> IO [B.ByteString]) -> HDFS.HadoopConfig -> String -> IO [B.ByteString]
 readAllChunks action config path =  do
   readHandle_ <- runHdfs' config $ openRead $ BC.pack path
   case readHandle_ of
@@ -55,14 +63,14 @@ copyToLocal (hdfsConfig, path) destFile = do
   config <- buildConfig hdfsConfig
   copyHdfsFileToLocal destFile (Just config) path
 
-copyHdfsFileToLocal :: FilePath -> Maybe HadoopConfig -> String -> IO ()
+copyHdfsFileToLocal :: FilePath -> Maybe HDFS.HadoopConfig -> String -> IO ()
 copyHdfsFileToLocal destFile config path = do
   destFileExists <- doesFileExist destFile
   if destFileExists
     then error $ destFile++" exists"
     else withBinaryFile destFile WriteMode $ \h -> withHdfsReader (BC.hPut h) config path
 
-withHdfsReader :: (BC.ByteString -> IO ()) -> Maybe HadoopConfig -> String -> IO ()
+withHdfsReader :: (BC.ByteString -> IO ()) -> Maybe HDFS.HadoopConfig -> String -> IO ()
 withHdfsReader action config path =  do
   readHandle_ <- maybe runHdfs runHdfs' config $ openRead $ BC.pack path
   case readHandle_ of

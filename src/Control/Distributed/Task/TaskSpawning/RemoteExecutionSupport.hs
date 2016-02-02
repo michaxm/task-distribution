@@ -11,7 +11,7 @@ module Control.Distributed.Task.TaskSpawning.RemoteExecutionSupport (
 import qualified System.Log.Logger as L
 import System.Environment (getArgs, getExecutablePath)
 
-import Control.Distributed.Task.TaskSpawning.DeployFullBinary (unpackDataModes)
+import Control.Distributed.Task.TaskSpawning.DeployFullBinary (unpackIOHandling)
 import Control.Distributed.Task.TaskSpawning.TaskSpawning (executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization)
 import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.Configuration
@@ -24,11 +24,11 @@ withFullBinaryRemoteExecutionSupport :: (TaskInput -> TaskResult) -> IO () -> IO
 withFullBinaryRemoteExecutionSupport fn mainAction = do
   args <- getArgs
   case args of
-   [mode, dataModes, taskInputFilePath, taskOutputFilePath] ->
+   [mode, ioHandling] ->
      if mode == executeFullBinaryArg
      then
        initTaskLogging >>
-       executionWithinSlaveProcessForFullBinaryDeployment (unpackDataModes dataModes) fn taskInputFilePath taskOutputFilePath
+       executionWithinSlaveProcessForFullBinaryDeployment (unpackIOHandling ioHandling) fn
      else mainAction
    _ -> mainAction
 
@@ -36,11 +36,11 @@ withSerializedThunkRemoteExecutionSupport :: IO () -> IO ()
 withSerializedThunkRemoteExecutionSupport mainAction = do
   args <- getArgs
   case args of
-   [mode, taskFn, dataModes, taskInputFilePath, taskOutputFilePath] ->
+   [mode, taskFn, ioHandling] ->
      if mode == executeSerializedThunkArg
      then
        initTaskLogging >>
-       executionWithinSlaveProcessForThunkSerialization (unpackDataModes dataModes) taskFn taskInputFilePath taskOutputFilePath
+       executionWithinSlaveProcessForThunkSerialization (unpackIOHandling ioHandling) taskFn
      else mainAction
    _ -> mainAction
 

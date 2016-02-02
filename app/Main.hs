@@ -41,7 +41,7 @@ usageInfo :: String
 usageInfo = "Syntax: master"
             ++ " <host>"
             ++ " <port>"
-            ++ " <module:<module path>|fullbinary[-stream-input]|serializethunkdemo:<demo function>:<demo arg>|objectcodedemo>"
+            ++ " <module:<module path>|fullbinary|serializethunkdemo:<demo function>:<demo arg>|objectcodedemo>"
             ++ " <simpledata:numDBs|hdfs:<file path>[:<subdir depth>[:<filename filter prefix>]]"
             ++ " <collectonmaster|discard|storeinhdfs:<outputprefix>[:<outputsuffix>]>\n"
             ++ "| slave <slave host> <slave port>\n"
@@ -61,8 +61,7 @@ parseMasterOpts args =
     parseTaskSpec args =
       case splitOn ":" args of
        ["module", modulePath] -> SourceCodeSpec modulePath
-       ["fullbinary"] -> FullBinaryDeployment File
-       ["fullbinary-stream-input"] -> FullBinaryDeployment Stream
+       ["fullbinary"] -> FullBinaryDeployment
        ["serializethunkdemo", demoFunction, demoArg] -> mkSerializeThunkDemoArgs demoFunction demoArg
        ["objectcodedemo"] -> ObjectCodeModuleDeployment remoteExecutable
        _ -> userSyntaxError $ "unknown task specification: " ++ args

@@ -22,12 +22,10 @@ data TaskDef
    _moduleContent :: String
    }
  | DeployFullBinary {
-   _deployable :: ByteString,
-   _taskInputMode :: TaskInputMode
+   _deployable :: ByteString
    }
  | PreparedDeployFullBinary {
-   _preparedFullBinaryHash :: Int,
-   _taskInputMode :: TaskInputMode
+   _preparedFullBinaryHash :: Int
    }
  | UnevaluatedThunk {
    _unevaluatedThunk :: ByteString,
@@ -38,14 +36,6 @@ data TaskDef
    } deriving (Typeable, Generic)
 instance Binary TaskDef
 instance Serializable TaskDef
-
--- how input is given to task as an external program
-data TaskInputMode
-  = FileInput
-  | StreamInput
-  deriving (Typeable, Generic)
-instance Binary TaskInputMode
-instance Serializable TaskInputMode
 
 {-
  Where data comes from:
@@ -58,7 +48,7 @@ data DataDef
     _hdfsInputPath :: HdfsPath
     }
   | PseudoDB {
-    _numDB :: Int
+    _pseudoDBFilePath :: FilePath
     } deriving (Typeable, Generic)
 instance Binary DataDef
 instance Serializable DataDef
@@ -71,11 +61,12 @@ instance Serializable DataDef
 -}
 data ResultDef
  = ReturnAsMessage
+ | ReturnOnlyNumResults
  | HdfsResult {
    _outputPrefix :: String,
-   _outputSuffix :: String
+   _outputSuffix :: String,
+   _outputZipped :: Bool
    }
- | ReturnOnlyNumResults
  deriving (Typeable, Generic)
 instance Binary ResultDef
 instance Serializable ResultDef
