@@ -1,4 +1,5 @@
 module Control.Distributed.Task.TaskSpawning.DeployFullBinary (
+  ExternalExecutionResult,
   deployAndRunFullBinary, deployAndRunExternalBinary, fullBinaryExecution, runExternalBinary,
   packIOHandling, unpackIOHandling, IOHandling(..)
   ) where
@@ -19,10 +20,12 @@ import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.FileUtil
 import Control.Distributed.Task.Util.Logging
 
-deployAndRunFullBinary :: String -> IOHandling -> BL.ByteString -> IO [CompleteTaskResult]
+type ExternalExecutionResult = ([TaskResult], NominalDiffTime)
+
+deployAndRunFullBinary :: String -> IOHandling -> BL.ByteString -> IO ExternalExecutionResult
 deployAndRunFullBinary mainArg = deployAndRunExternalBinary [mainArg]
 
-deployAndRunExternalBinary :: [String] -> IOHandling -> BL.ByteString -> IO [CompleteTaskResult]
+deployAndRunExternalBinary :: [String] -> IOHandling -> BL.ByteString -> IO ExternalExecutionResult
 deployAndRunExternalBinary programBaseArgs ioHandling program =
   withTempBLFile "distributed-program" program $ runExternalBinary programBaseArgs ioHandling
 
@@ -30,16 +33,14 @@ deployAndRunExternalBinary programBaseArgs ioHandling program =
  Makes an external system call, parameters must match those read in RemoteExecutionSupport.
 -}
  -- should setting the executable flag rather be a part of the binary storage?
-runExternalBinary :: [String] -> IOHandling -> FilePath -> IO [CompleteTaskResult]
-runExternalBinary programBaseArgs ioHandling executablePath = do
-  (results, runtime) <- measureDuration $ do
+runExternalBinary :: [String] -> IOHandling -> FilePath -> IO ExternalExecutionResult
+runExternalBinary programBaseArgs ioHandling executablePath =
+  measureDuration $ do
     readProcessWithExitCode "chmod" ["+x", executablePath] "" >>= expectSilentSuccess
     logInfo $ "worker: spawning external process: "++executablePath++" with baseArgs: "++show programBaseArgs
     processOutput <- executeExternal executablePath (programBaseArgs ++ [packIOHandling ioHandling])
     logInfo $ "worker: external process finished: "++executablePath
     return $ consumeResults processOutput
-  return $ map (\r -> (DirectResult r, (fromIntegral (0 :: Integer), runtime))) results
-  -- TODO measure data load times seperately
 
 {-|
  Some methods parse the contents of stdout, thus these will fail in the case of logging to it (only ERROR at the moment).
@@ -47,9 +48,9 @@ runExternalBinary programBaseArgs ioHandling executablePath = do
 fullBinaryExecution :: IOHandling -> Task -> IO ()
 fullBinaryExecution (IOHandling dataDefs resultDef) task = do
   logInfo $ "external binary: processing "++(concat $ intersperse ", " $ map describe dataDefs)
-  results <- mapM (async . runSingle task resultDef) dataDefs
+  tasks <- mapM (async . runSingle task resultDef) dataDefs
    -- reminder: trying to collect results here and submit them collectively makes it harder to force evaluation into the parallel part
-  _output <- mapM wait results
+  mapM_ wait tasks
   logInfo $ "external binary: tasks completed"
 
 runSingle :: Task -> ResultDef -> DataDef -> IO ()

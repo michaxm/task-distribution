@@ -1,20 +1,13 @@
 module Control.Distributed.Task.TaskSpawning.TaskSpawningTypes (
-  CompleteTaskResult, TaskResultWrapper(..), SingleTaskRunStatistics,
+  NominalDiffTime, -- reexport
   IOHandling(..), packIOHandling, unpackIOHandling
   ) where
 
 import Data.Time.Clock (NominalDiffTime)
 
 import Control.Distributed.Task.TaskSpawning.TaskDefinition
-import Control.Distributed.Task.Types.TaskTypes
 import Data.List (intersperse)
 import Data.List.Split (splitOn)
-
--- task results with runtime statistics
-
-type CompleteTaskResult = (TaskResultWrapper, SingleTaskRunStatistics)
-data TaskResultWrapper = DirectResult TaskResult | StoredRemote
-type SingleTaskRunStatistics = (NominalDiffTime, NominalDiffTime)
 
 -- task communication
 

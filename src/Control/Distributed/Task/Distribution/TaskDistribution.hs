@@ -22,7 +22,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.List (intersperse)
 import qualified Data.Map.Strict as Map
 import qualified Data.Rank1Dynamic as R1 (toDynamic)
-import Data.Time.Clock (UTCTime, diffUTCTime, NominalDiffTime, getCurrentTime)
+import Data.Time.Clock (UTCTime, diffUTCTime, getCurrentTime)
 
 import Control.Distributed.Task.Distribution.DataLocality (findNodesWithData)
 import Control.Distributed.Task.Distribution.LogConfiguration
@@ -30,7 +30,7 @@ import Control.Distributed.Task.Distribution.TaskTransport
 import qualified Control.Distributed.Task.TaskSpawning.BinaryStorage as RemoteStore
 import Control.Distributed.Task.TaskSpawning.TaskDefinition
 import Control.Distributed.Task.TaskSpawning.TaskDescription
-import Control.Distributed.Task.TaskSpawning.TaskSpawning (processTask)
+import Control.Distributed.Task.TaskSpawning.TaskSpawning (processTasks, TasksExecutionResult)
 import Control.Distributed.Task.TaskSpawning.TaskSpawningTypes
 import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.Configuration
@@ -44,7 +44,7 @@ import Control.Distributed.Task.Util.SerializationUtil
 
 -- BEGIN bindings for node communication
 {-
- This is the final building block of the slave task execution, calling TaskSpawning.processTask.
+ This is the final building block of the slave task execution, calling TaskSpawning.processTasks.
 -}
 slaveTask :: TaskTransport -> Process () -- TODO: have a node local config?
 slaveTask = handleSlaveTask
@@ -149,36 +149,18 @@ executeOnNodes' taskDef dataDefs resultDef slaveNodes = do
   collectedResults <- distributeWorkForNodes masterProcess (_maxTasksPerNode config) (_distributionStrategy config) taskDef dataDefs resultDef slaveNodes
   after <- liftIO getCurrentTime
   say $ "total time: " ++ show (diffUTCTime after before)
-  let (pureResults, runStatistics) = splitStatistics collectedResults
-    in do
-    say $ printStatistics runStatistics
-    return $ pureResults
+  say $ "remote times:" ++ (printStatistics collectedResults)
+  return $ concat $ map _collectedResults collectedResults
 
-type AggregatedResult = ([TaskResult], RunStatistics)
-type RunStatistics = (NominalDiffTime, NominalDiffTime, [SingleTaskRunStatistics])
-
-splitStatistics :: [CollectedResult] -> AggregatedResult
-splitStatistics = foldr aggregateResults ([], emptyStats)
+printStatistics :: [CollectedResult] -> String
+printStatistics = concat . map printStat
   where
-    emptyStats = (emptyDuration, emptyDuration, [])
-    emptyDuration = fromIntegral (0 :: Integer)
-    aggregateResults :: CollectedResult -> AggregatedResult -> AggregatedResult
-    aggregateResults collectedResult aggregatedResults = combine aggregatedResults $ toAggregatedResult collectedResult
+    printStat r = "\ntotal: " ++total++ ", remote total: " ++remoteTotal++ ", task execution total real time: " ++taskTotal++" for remote run: "++taskname
       where
-        combine :: AggregatedResult -> AggregatedResult -> AggregatedResult
-        combine (rs1, stats1) (rs2, stats2) = (rs1++rs2, combineStats stats1 stats2)
-          where
-            combineStats (d1, r1, ts1) (d2, r2, ts2) = (d1+d2, r1+r2, ts1++ts2)
-        toAggregatedResult :: CollectedResult -> AggregatedResult
-        toAggregatedResult (CollectedResult _ d r res) = (map fst res, (d, r, map toStats res))
-          where
-            toStats :: CollectedCompleteTaskResult -> SingleTaskRunStatistics
-            toStats = snd
-        
-
-printStatistics :: RunStatistics -> String
-printStatistics = show -- TODO too lazy for now ...
---  n ++ ": total: " ++ (show totalTaskTime) ++ ", remote total: " ++ (show remoteTotal) ++ ", data load: " ++ (show dataLoadDur) ++ ", task exec: " ++ (show execTaskDur)
+        taskname = _taskName $ _collectedMetaData r
+        total = show $ _totalDistributedRuntime r
+        remoteTotal = show $ _totalRemoteRuntime r
+        taskTotal = show $ _totalTasksRuntime r
 
 type NodeOccupancy = Map.Map NodeId Bool
 
@@ -247,13 +229,16 @@ distributeWorkForNodes masterProcess maxTasksPerNode strategy taskDef dataDefs r
         say $ "got result from: " ++ (show $ _slaveNodeId taskMetaData)
         doItFor (updatedResults, resultsWaitingOn-1, unoccupyNode (_slaveNodeId taskMetaData) nodeOccupancy, undistributedTasks)
 
+{-|
+ Represents the results of a single remote execution, including multiple results from parallel execution.
+-}
 data CollectedResult = CollectedResult {
   _collectedMetaData :: TaskMetaData,
   _totalDistributedRuntime :: NominalDiffTime,
   _totalRemoteRuntime :: NominalDiffTime,
-  _collectedResults :: [CollectedCompleteTaskResult]
+  _totalTasksRuntime :: NominalDiffTime,
+  _collectedResults :: [TaskResult]
 }
-type CollectedCompleteTaskResult = (TaskResult, SingleTaskRunStatistics)
 
 collectSingle :: Process CollectedResult
 collectSingle = receiveWait [
@@ -261,20 +246,18 @@ collectSingle = receiveWait [
   matchAny $ \msg -> liftIO $ putStr " received unhandled  message : " >> print msg >> error "aborting due to unknown message type"
   ]
   where
---    handleTransportedResult :: TransportedResult -> Process CollectedResult
-    handleTransportedResult (TransportedResult taskMetaData remoteRuntime serializedResults) = do
+    handleTransportedResult :: TransportedResult -> Process CollectedResult
+    handleTransportedResult (TransportedResult taskMetaData remoteRuntime tasksRuntime serializedResults) = do
       say $ "got task processing response for: "++_taskName taskMetaData
       now <- liftIO getCurrentTime
       let
         taskName = _taskName taskMetaData
-        distributedTime = diffUTCTime now (deserializeTime $ _taskDistributionStartTime taskMetaData)
+        distributedRuntime' = diffUTCTime now (deserializeTime $ _taskDistributionStartTime taskMetaData)
         remoteRuntime' = deserializeTimeDiff remoteRuntime
+        tasksRuntime' = deserializeTimeDiff tasksRuntime
         in case serializedResults of
-            (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (CollectedResult taskMetaData distributedTime remoteRuntime' []) -- note: no restarts take place here
-            (Right results) -> return (CollectedResult taskMetaData distributedTime remoteRuntime' (map deserializeTaskResult results))
-        where
-          deserializeTaskResult :: SerializedCompleteTaskResult -> CollectedCompleteTaskResult
-          deserializeTaskResult (taskRes, (d, e)) = (taskRes, (deserializeTimeDiff d, deserializeTimeDiff e))
+            (Left  msg) -> say (msg ++ " failure not handled for "++taskName++"...") >> return (CollectedResult taskMetaData distributedRuntime' remoteRuntime' tasksRuntime' []) -- note: no restarts take place here
+            (Right results) -> return $ CollectedResult taskMetaData distributedRuntime' remoteRuntime' tasksRuntime' results
 
 spawnSlaveProcess :: ProcessId -> TaskDef -> [DataDef] -> ResultDef -> NodeId -> Process ()
 spawnSlaveProcess masterProcess taskDef dataDefs resultDef slaveNode = do
@@ -311,7 +294,7 @@ handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDefs resul
     do
       acceptTime <- liftIO getCurrentTime
       say $ "processing: " ++ taskName
-      results <- liftIO (processTask taskDef dataDefs resultDef)
+      results <- liftIO (processTasks taskDef dataDefs resultDef)
       say $ "processing done for: " ++ taskName
       processingDoneTime <- liftIO getCurrentTime
       return $ prepareResultsForResponding taskMetaData acceptTime processingDoneTime results
@@ -322,24 +305,18 @@ handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDefs resul
   where
     taskName = _taskName taskMetaData
     buildError :: SomeException -> Process TransportedResult
-    buildError e = return $ TransportedResult taskMetaData (fromIntegral (0 :: Integer)) $ Left $ "Task execution (for: "++taskName++") failed: " ++ (format $ show e)
+    buildError e = return $ TransportedResult taskMetaData emptyDuration emptyDuration $ Left $ "Task execution (for: "++taskName++") failed: " ++ (format $ show e)
       where
+        emptyDuration = fromIntegral (0 :: Integer)
         format [] = []
         format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
         format (x:rest) = x:[] ++ (format rest)
 
-prepareResultsForResponding :: TaskMetaData -> UTCTime -> UTCTime -> [CompleteTaskResult] -> TransportedResult
-prepareResultsForResponding metaData acceptTime processingDoneTime results =
-  TransportedResult metaData remoteRuntime $ Right $ map prepareSingleResult results
+prepareResultsForResponding :: TaskMetaData -> UTCTime -> UTCTime -> TasksExecutionResult -> TransportedResult
+prepareResultsForResponding metaData acceptTime processingDoneTime (results, tasksRuntime) =
+  TransportedResult metaData remoteRuntime (serializeTimeDiff tasksRuntime) $ Right results
   where
     remoteRuntime = serializeTimeDiff $ diffUTCTime processingDoneTime acceptTime
-    prepareSingleResult :: CompleteTaskResult -> SerializedCompleteTaskResult
-    prepareSingleResult (taskResultWrapper, runStat) = case taskResultWrapper of
-      StoredRemote -> ([], serializedRunStat)
-      (DirectResult plainResult) -> (plainResult, serializedRunStat)
-      where
-        serializedRunStat :: SerializedSingleTaskRunStatistics
-        serializedRunStat = (serializeTimeDiff $ fst runStat, serializeTimeDiff $ snd runStat)
 
 -- preparation negotiaion
 

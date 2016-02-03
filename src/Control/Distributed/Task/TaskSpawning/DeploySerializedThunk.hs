@@ -3,7 +3,7 @@ module Control.Distributed.Task.TaskSpawning.DeploySerializedThunk (deployAndRun
 import qualified Data.ByteString.Lazy as BL
 import System.FilePath ()
 
-import Control.Distributed.Task.TaskSpawning.DeployFullBinary (deployAndRunExternalBinary, fullBinaryExecution)
+import Control.Distributed.Task.TaskSpawning.DeployFullBinary (ExternalExecutionResult, deployAndRunExternalBinary, fullBinaryExecution)
 import Control.Distributed.Task.TaskSpawning.FunctionSerialization (deserializeFunction)
 import Control.Distributed.Task.TaskSpawning.TaskSpawningTypes
 import Control.Distributed.Task.Types.TaskTypes
@@ -13,7 +13,7 @@ import Control.Distributed.Task.Types.TaskTypes
 
  The execution does not include error handling, this should be done on master/client.
 -}
-deployAndRunSerializedThunk :: String -> BL.ByteString -> IOHandling -> BL.ByteString -> IO [CompleteTaskResult]
+deployAndRunSerializedThunk :: String -> BL.ByteString -> IOHandling -> BL.ByteString -> IO ExternalExecutionResult
 deployAndRunSerializedThunk mainArg taskFunction = deployAndRunExternalBinary [mainArg, show taskFunction]
 
 {-

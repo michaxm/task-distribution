@@ -34,15 +34,13 @@ instance Binary TaskMetaData
 instance Serializable TaskMetaData
 
 data TransportedResult = TransportedResult {
-  _resultMetaData :: TaskMetaData,
-  _remoteRuntime :: TotalRemoteRuntime,
-  _results :: Either String [SerializedCompleteTaskResult]
+  _transportedResultMetaData :: TaskMetaData,
+  _transportedTotalRemoteRuntime :: Rational,
+  _transportedTotalTasksRuntime :: Rational,
+  _transportedResults :: Either String [TaskResult]
   } deriving (Typeable, Generic)
 instance Binary TransportedResult
 instance Serializable TransportedResult
-type TotalRemoteRuntime = Rational
-type SerializedCompleteTaskResult = (TaskResult, SerializedSingleTaskRunStatistics)
-type SerializedSingleTaskRunStatistics = (Rational, Rational)
 
 --- task preparation
 
