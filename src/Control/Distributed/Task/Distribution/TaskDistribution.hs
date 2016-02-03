@@ -194,7 +194,7 @@ distributeWorkForNodes masterProcess maxTasksPerNode strategy taskDef dataDefs r
        liftIO $ logInfo $ "finding suitable tasks for the next unoccupied node: "++show freeNode++" - occupations: "++show nodeOccupancy
        (suitableTasks, remainingTasks) <- findSuitableTasks strategy freeNode
        if null suitableTasks
-         then error $ "nothing found to distribute, should not have tried in the first place then"
+         then error $ "nothing found to distribute, should not have tried in the first place then: "++(show (map describe undistributedTasks, map describe suitableTasks, map describe remainingTasks))
          else do -- regular distribution
            say $ "spawning on: " ++ (show $ freeNode)
            spawnSlaveProcess masterProcess taskDef suitableTasks resultDef freeNode
@@ -214,7 +214,7 @@ distributeWorkForNodes masterProcess maxTasksPerNode strategy taskDef dataDefs r
               allNodesSuitableForTask <- findNodesWithData' t
               if any (==freeNode) allNodesSuitableForTask
                 then takeLocalTasks (n-1) (t:found) notSuitable rest
-                else takeLocalTasks (n-1) found (t:notSuitable) rest
+                else takeLocalTasks n found (t:notSuitable) rest
               where
                 findNodesWithData' :: DataDef -> Process [NodeId]
                 findNodesWithData' (HdfsData loc) = liftIO $ findNodesWithData loc allNodes -- TODO this listing is not really efficient for this approach, caching necessary?
