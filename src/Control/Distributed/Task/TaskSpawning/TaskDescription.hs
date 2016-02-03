@@ -11,5 +11,5 @@ instance Describable TaskDef where
   describe (UnevaluatedThunk _ _) = "unevaluated user function"
   describe (ObjectCodeModule _) = "object code module"
 instance Describable DataDef where
-  describe (HdfsData l) = l
-  describe (PseudoDB n) = show n
+  describe (HdfsData p) = p
+  describe (PseudoDB p) = p

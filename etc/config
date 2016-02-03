@@ -5,4 +5,4 @@ hdfs=localhost:8020
 thrift=localhost:55555
 distribution-strategy=anywhere
 task-log-file=log/deployed-executable-task.log
-max-tasks-per-node=2
+max-tasks-per-node=5
