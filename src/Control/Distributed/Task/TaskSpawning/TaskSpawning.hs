@@ -5,19 +5,15 @@ module Control.Distributed.Task.TaskSpawning.TaskSpawning (
   objectCodeSerializationOnMaster
   ) where
 
-import Control.Concurrent.Async (async, wait)
 import qualified Data.ByteString.Lazy as BL
 import Data.List (intersperse)
-import qualified Language.Haskell.Interpreter as I
 
-import Control.Distributed.Task.DataAccess.DataSource (loadData)
 import qualified Control.Distributed.Task.TaskSpawning.BinaryStorage as RemoteStore
 import qualified Control.Distributed.Task.TaskSpawning.DeployFullBinary as DFB
 import qualified Control.Distributed.Task.TaskSpawning.DeploySerializedThunk as DST
 import qualified Control.Distributed.Task.TaskSpawning.DeployObjectCodeRelinked as DOC
-import Control.Distributed.Task.TaskSpawning.ExecutionUtil (measureDuration)
 import Control.Distributed.Task.TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction)
-import Control.Distributed.Task.TaskSpawning.SourceCodeExecution (loadTask)
+import Control.Distributed.Task.TaskSpawning.SourceCodeExecution (processSourceCodeTasks)
 import Control.Distributed.Task.TaskSpawning.TaskDefinition
 import Control.Distributed.Task.TaskSpawning.TaskDescription
 import Control.Distributed.Task.TaskSpawning.TaskSpawningTypes
@@ -37,35 +33,11 @@ type TasksExecutionResult = DFB.ExternalExecutionResult
   but if there is no such intermediate step, a direct result is better.
 |-}
 processTasks :: TaskDef -> [DataDef] -> ResultDef -> IO TasksExecutionResult
+-- source code distribution behaves a bit different and only supports collectonmaster
 processTasks (SourceCodeModule moduleName moduleContent) dataDefs _ = processSourceCodeTasks moduleName moduleContent dataDefs
 processTasks taskDef dataDefs resultDef = do
   logInfo $ "spawning task for: "++(concat $ intersperse ", " $ map describe dataDefs)
   spawnExternalTask taskDef dataDefs resultDef
-
-{-|
- Source code distribution behaves a bit different and only supports collectonmaster
--}
-processSourceCodeTasks :: String -> String -> [DataDef] -> IO TasksExecutionResult
-processSourceCodeTasks moduleName moduleContent dataDefs =
-  measureDuration $ do
-    tasks <- mapM (async . runSourceCodeTask) dataDefs
-    mapM wait tasks -- FIXME this probably does not parallelilize at all
-    where
-      runSourceCodeTask :: DataDef -> IO TaskResult
-      runSourceCodeTask dataDef = do
-        logInfo $ "loading data for: "++describe dataDef
-        taskInput <- loadData dataDef
-        logInfo $ "applying data to task:"++moduleName
-        result <- applySourceCodeTaskLogic taskInput
-        return result
-        where
-          applySourceCodeTaskLogic taskInput = do
-            putStrLn "compiling task from source code"
-            taskFn <- loadTask (I.as :: TaskInput -> TaskResult) moduleName moduleContent
-            putStrLn "applying data"
-            return $ taskFn taskInput
-
--- TODO additional measuring of the task loading (execution overhead): time for loading source code / complete execution time of external program with reported data load and exec times subtracted
 
 spawnExternalTask :: TaskDef -> [DataDef] -> ResultDef -> IO DFB.ExternalExecutionResult
 spawnExternalTask (SourceCodeModule _ _) _ _ = error "source code distribution is handled differently"

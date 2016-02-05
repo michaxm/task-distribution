@@ -1,11 +1,10 @@
-max-tasks-per-node=5
+max-tasks-per-node=4
 hdfs=localhost:8020
 pseudo-db-path=resources/pseudo-db
 distribution-strategy=anywhere
 task-log-file=log/deployed-executable-task.log
+source-code-distribution-home=src
 object-code-path-on-master=.stack-work/dist/i386-linux/Cabal-1.18.1.5/build/example/example-tmp/
 package-db-path=.stack-work/install/i386-linux/lts-2.22/7.8.4/pkgdb/
 object-code-resources-path-src=src
 object-code-resources-path-extra=object-code-app
-lib-location=~/.stack/programs/i386-linux/ghc-7.8.4/lib/ghc-7.8.4/
-ghc-version=ghc-7.8.4

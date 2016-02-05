@@ -1,6 +1,8 @@
 module DynamicTaskDuplicate where
 
-import TaskSpawning.TaskTypes
+import Data.ByteString.Lazy.Char8 as BLC
 
-task :: TaskInput -> TaskResult
-task = map (\s -> s ++ " - " ++ s)
+import Control.Distributed.Task.Types.TaskTypes
+
+task :: Task
+task = Prelude.map (\s -> s `BLC.append` (BLC.pack " - ") `BLC.append` s)

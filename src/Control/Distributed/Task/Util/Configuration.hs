@@ -12,12 +12,12 @@ data Configuration = Configuration {
   _pseudoDBPath :: FilePath,
   _distributionStrategy :: DistributionStrategy,
   _taskLogFile :: FilePath,
+  _sourceCodeDistributionHome :: FilePath,
+  _sourceCodeModules :: [(String, Maybe String)],
   _objectCodePathOnMaster :: FilePath,
   _packageDbPath :: FilePath,
   _objectCodeResourcesPathSrc :: FilePath,
-  _objectCodeResourcesPathExtra :: FilePath,
-  _libLocation :: FilePath,
-  _ghcVersion :: String
+  _objectCodeResourcesPathExtra :: FilePath
   }
 
 data DistributionStrategy
@@ -25,20 +25,24 @@ data DistributionStrategy
   | AnywhereIsFine
 
 getConfiguration :: IO Configuration
-getConfiguration = readFile "etc/config" >>= return . parseConfig
+getConfiguration = do
+  confFile <- readFile "etc/config"
+  sourceCodeModulesFile <- readFile "etc/sourcecodemodules"
+  return $ parseConfig confFile sourceCodeModulesFile
   where
-    parseConfig conf = Configuration
-                       (read $ f "max-tasks-per-node")
-                       (readEndpoint $ f "hdfs")
-                       (f "pseudo-db-path")
-                       (readStrat $ f "distribution-strategy")
-                       (f "task-log-file")
-                       (f "object-code-path-on-master")
-                       (f "package-db-path")
-                       (f "object-code-resources-path-src")
-                       (f "object-code-resources-path-extra")
-                       (f "lib-location")
-                       (f "ghc-version")
+    parseConfig conf sourceCodeModulesFile =
+      Configuration
+      (read $ f "max-tasks-per-node")
+      (readEndpoint $ f "hdfs")
+      (f "pseudo-db-path")
+      (readStrat $ f "distribution-strategy")
+      (f "task-log-file")
+      (f "source-code-distribution-home")
+      (map mkSourceCodeModule $ lines sourceCodeModulesFile)
+      (f "object-code-path-on-master")
+      (f "package-db-path")
+      (f "object-code-resources-path-src")
+      (f "object-code-resources-path-extra")
       where
         f = getConfig conf
         readStrat s = case s of
@@ -48,7 +52,9 @@ getConfiguration = readFile "etc/config" >>= return . parseConfig
         readEndpoint str = let es = splitOn ":" str
                            in if length es == 2
                               then (es !! 0, read $ es !! 1)
-                              else error $ "hdfs not properly configured in etc/config (example: hdfs=localhost:55555): "++str
+                              else error $ "endpoint not properly configured in etc/config (example: hdfs=localhost:55555): "++str
+
+        mkSourceCodeModule line = let es = splitOn ":" line in if (length es) == 1 then (es !! 0, Nothing) else (es !! 0, Just $ es !! 1)
 
 getConfig :: String -> String -> String
 getConfig file key =

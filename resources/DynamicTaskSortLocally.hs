@@ -1,8 +1,9 @@
 module DynamicTaskSortLocally where
 
+import Data.ByteString.Lazy.Char8 as BLC
 import Data.List (sort)
 
-import TaskSpawning.TaskTypes
+import Control.Distributed.Task.Types.TaskTypes
 
-task :: TaskInput -> TaskResult
+task :: Task
 task = sort

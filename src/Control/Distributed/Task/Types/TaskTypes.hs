@@ -1,7 +1,7 @@
 module Control.Distributed.Task.Types.TaskTypes where
 
-import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as BLC
 
-type TaskInput = [ByteString]
-type TaskResult = [ByteString]
+type TaskInput = [BLC.ByteString]
+type TaskResult = [BLC.ByteString]
 type Task = TaskInput -> TaskResult

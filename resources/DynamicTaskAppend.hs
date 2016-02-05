@@ -1,6 +1,8 @@
 module DynamicTaskAppend where
 
-import TaskSpawning.TaskTypes
+import Data.ByteString.Lazy.Char8 as BLC
 
-task :: TaskInput -> TaskResult
-task = map (++" appended")
+import Control.Distributed.Task.Types.TaskTypes
+
+task :: Task
+task = Prelude.map (Prelude.flip BLC.append (BLC.pack " appended"))
