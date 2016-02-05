@@ -1,11 +1,8 @@
 module Main where
 
-import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.List (intersperse)
 import Data.List.Split (splitOn)
-import Data.Strings (strReplace)
-import System.Environment (getArgs, getExecutablePath)
-import qualified System.Log.Logger as L
+import System.Environment (getArgs)
 
 import Control.Distributed.Task.Distribution.LogConfiguration (initDefaultLogging)
 import Control.Distributed.Task.Distribution.RunComputation
@@ -54,36 +51,36 @@ usageInfo = "Syntax: master"
 parseMasterOpts :: [String] -> MasterOptions
 parseMasterOpts args =
   case args of
-   [masterHost, port, taskSpec, dataSpec, resultSpec] -> MasterOptions masterHost (read port) (parseTaskSpec taskSpec) (parseDataSpec masterHost dataSpec) (parseResultSpec resultSpec)
+   [masterHost, port, taskSpec, dataSpec, resultSpec] -> MasterOptions masterHost (read port) (parseTaskSpec taskSpec) (parseDataSpec dataSpec) (parseResultSpec resultSpec)
    _ -> userSyntaxError "wrong number of master options"
   where
     parseTaskSpec :: String -> TaskSpec
-    parseTaskSpec args =
-      case splitOn ":" args of
+    parseTaskSpec taskArgs =
+      case splitOn ":" taskArgs of
        ["module", modulePath] -> SourceCodeSpec modulePath
        ["fullbinary"] -> FullBinaryDeployment
        ["serializethunkdemo", demoFunction, demoArg] -> mkSerializeThunkDemoArgs demoFunction demoArg
        ["objectcodedemo"] -> ObjectCodeModuleDeployment remoteExecutable
-       _ -> userSyntaxError $ "unknown task specification: " ++ args
+       _ -> userSyntaxError $ "unknown task specification: " ++ taskArgs
        where
         mkSerializeThunkDemoArgs :: String -> String -> TaskSpec
         mkSerializeThunkDemoArgs "append" demoArg = SerializedThunk (appendDemo demoArg)
         mkSerializeThunkDemoArgs "filter" demoArg = SerializedThunk (filterDemo demoArg)
         mkSerializeThunkDemoArgs "visitcalc" _ = SerializedThunk calculateRatio
         mkSerializeThunkDemoArgs d a = userSyntaxError $ "unknown demo: " ++ d ++ ":" ++ a
-    parseDataSpec :: String -> String -> DataSpec
-    parseDataSpec masterHost args =
-      case splitOn ":" args of
+    parseDataSpec :: String -> DataSpec
+    parseDataSpec inputArgs =
+      case splitOn ":" inputArgs of
        ["simpledata", numDBs] -> SimpleDataSpec $ read numDBs
        ("hdfs": hdfsPath: rest) -> HdfsDataSpec hdfsPath depth filter'
          where depth = if length rest > 0 then read (rest !! 0) else 0; filter' = if length rest > 1 then Just (rest !! 1) else Nothing
-       _ -> userSyntaxError $ "unknown data specification: " ++ args
-    parseResultSpec args =
-      case splitOn ":" args of
+       _ -> userSyntaxError $ "unknown data specification: " ++ inputArgs
+    parseResultSpec resultArgs =
+      case splitOn ":" resultArgs of
        ["collectonmaster"] -> CollectOnMaster resultProcessor
        ("storeinhdfs":outputPrefix:rest) -> StoreInHdfs outputPrefix $ if null rest then "" else head rest
        ["discard"] -> Discard
-       _ -> userSyntaxError $ "unknown result specification: " ++ args
+       _ -> userSyntaxError $ "unknown result specification: " ++ resultArgs
 
 resultProcessor :: [TaskResult] -> IO ()
 resultProcessor res = do

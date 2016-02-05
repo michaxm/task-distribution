@@ -1,3 +1,6 @@
 [submodule "packman"]
 	path = packman
 	url = https://github.com/jberthold/packman.git
+[submodule "hadoop-rpc"]
+	path = hadoop-rpc
+	url = https://github.com/michaxm/hadoop-rpc.git

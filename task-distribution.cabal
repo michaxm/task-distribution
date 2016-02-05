@@ -70,13 +70,27 @@ library
                      , async
   default-language:    Haskell2010
 
+executable slave
+  hs-source-dirs:      app
+  main-is:             Slave.hs
+  other-modules:       
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
+  build-depends:       base
+                     , task-distribution
+                     , hslogger
+                     , containers
+                     , json
+                     , strings
+                     , bytestring
+  default-language:    Haskell2010
+
 executable example
   hs-source-dirs:      app
   main-is:             Main.hs
   other-modules:       RemoteExecutable
                      , FullBinaryExamples
                      , DemoTask
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Werror
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
   build-depends:       base
                      , split
                      , task-distribution

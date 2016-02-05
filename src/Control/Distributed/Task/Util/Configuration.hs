@@ -29,7 +29,7 @@ getConfiguration = readFile "etc/config" >>= return . parseConfig
                        (f "lib-location")
                        (f "ghc-version")
                        (readHdfs $ f "hdfs")
-                       ("pseudo-db-path")
+                       (f "pseudo-db-path")
                        (readStrat $ f "distribution-strategy")
                        (f "task-log-file")
                        (read $ f "max-tasks-per-node")
