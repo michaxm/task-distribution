@@ -305,12 +305,9 @@ handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDefs resul
   where
     taskName = _taskName taskMetaData
     buildError :: SomeException -> Process TransportedResult
-    buildError e = return $ TransportedResult taskMetaData emptyDuration emptyDuration $ Left $ "Task execution (for: "++taskName++") failed: " ++ (format $ show e)
+    buildError e = return $ TransportedResult taskMetaData emptyDuration emptyDuration $ Left $ "Task execution (for: "++taskName++") failed: " ++ (show e)
       where
         emptyDuration = fromIntegral (0 :: Integer)
-        format [] = []
-        format ('\\':'n':'\\':'t':rest) = "\n\t" ++ (format rest)
-        format (x:rest) = x:[] ++ (format rest)
 
 prepareResultsForResponding :: TaskMetaData -> UTCTime -> UTCTime -> TasksExecutionResult -> TransportedResult
 prepareResultsForResponding metaData acceptTime processingDoneTime (results, tasksRuntime) =
