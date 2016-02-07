@@ -2,6 +2,8 @@
 */#*#
 *_flymake.hs
 .stack-work
+.cabal-sandbox
+cabal.sandbox.config
 log
 tmp
 dist

@@ -2,7 +2,8 @@ module Control.Distributed.Task.TaskSpawning.TaskSpawning (
   processTasks, TasksExecutionResult,
   fullBinarySerializationOnMaster, executeFullBinaryArg, executionWithinSlaveProcessForFullBinaryDeployment,
   serializedThunkSerializationOnMaster, executeSerializedThunkArg, executionWithinSlaveProcessForThunkSerialization,
-  objectCodeSerializationOnMaster) where
+  objectCodeSerializationOnMaster
+  ) where
 
 import Control.Concurrent.Async (async, wait)
 import qualified Data.ByteString.Lazy as BL
@@ -13,7 +14,7 @@ import Control.Distributed.Task.DataAccess.DataSource (loadData)
 import qualified Control.Distributed.Task.TaskSpawning.BinaryStorage as RemoteStore
 import qualified Control.Distributed.Task.TaskSpawning.DeployFullBinary as DFB
 import qualified Control.Distributed.Task.TaskSpawning.DeploySerializedThunk as DST
-import qualified Control.Distributed.Task.TaskSpawning.ObjectCodeModuleDeployment as DOC
+import qualified Control.Distributed.Task.TaskSpawning.DeployObjectCodeRelinked as DOC
 import Control.Distributed.Task.TaskSpawning.ExecutionUtil (measureDuration)
 import Control.Distributed.Task.TaskSpawning.FunctionSerialization (serializeFunction, deserializeFunction)
 import Control.Distributed.Task.TaskSpawning.SourceCodeExecution (loadTask)
@@ -77,8 +78,10 @@ spawnExternalTask (PreparedDeployFullBinary hash) dataDefs resultDef = do
 -- Serialized thunk deployment step 2/3: run within slave process to deploy the distributed task binary
 spawnExternalTask (UnevaluatedThunk function program) dataDefs resultDef =
   DST.deployAndRunSerializedThunk executeSerializedThunkArg function (IOHandling dataDefs resultDef) program
--- Partial binary deployment step 2/2: receive distribution on slave, prepare input data, link object file and spawn slave process, read its output
-spawnExternalTask (ObjectCodeModule _) _ _ = error $ "not implemented right now" --DOC.codeExecutionOnSlave objectCode taskInput >>= return . (onFirst DirectResult) -- TODO switch to location ("Left")
+-- Partial binary deployment step 2/2: receive distribution on slave, link object file and spawn slave process, read its output,
+-- the third step (accepting runtime arguments) is linked into the task executable (see RemoteExecutor)
+spawnExternalTask (ObjectCodeModule objectCode) dataDefs resultDef =
+  DOC.deployAndRunObjectCodeRelinked objectCode (IOHandling dataDefs resultDef)
 
 -- Full binary deployment step 1/3
 fullBinarySerializationOnMaster :: FilePath -> IO TaskDef
@@ -106,7 +109,7 @@ executionWithinSlaveProcessForThunkSerialization ioHandling taskFnArg = do
   function <- deserializeFunction taskFn :: IO (TaskInput -> TaskResult)
   serializeFunction function >>= \s -> logDebug $ "task deserialization done for: " ++ (show $ BL.unpack s)
   DST.serializedThunkExecution ioHandling function
-
+  
 -- Partial binary deployment step 1/2: start distribution of task on master
 objectCodeSerializationOnMaster :: IO TaskDef
 objectCodeSerializationOnMaster = DOC.loadObjectCode >>= \objectCode -> return $ ObjectCodeModule objectCode

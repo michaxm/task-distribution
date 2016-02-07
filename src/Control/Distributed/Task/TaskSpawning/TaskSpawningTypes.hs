@@ -14,11 +14,12 @@ import Data.List.Split (splitOn)
 data IOHandling = IOHandling [DataDef] ResultDef
 
 packIOHandling :: IOHandling -> String
-packIOHandling (IOHandling dataDefs resultDef) = (packResultDef resultDef)++"\n"++(concat $ intersperse "\n" $ map packDataDef dataDefs)
+packIOHandling (IOHandling dataDefs resultDef) = (packResultDef resultDef)++"|"++(concat $ intersperse "|" $ map packDataDef dataDefs)
 unpackIOHandling :: String -> IOHandling
-unpackIOHandling s = let sLines = lines s
-                         firstLine = if length sLines < 1 then error "empty io handling" else head sLines
-                     in IOHandling (map unpackDataDef $ tail sLines) (unpackResultDef firstLine)
+unpackIOHandling s = let fields = splitOn "|" s
+                     in if length fields < 2
+                        then error $ "incompliete io handling: "++s
+                        else IOHandling (map unpackDataDef $ tail fields) (unpackResultDef $ head fields)
 
 splitOnExpect :: Int -> String -> String -> [String]
 splitOnExpect len delim s = let es = splitOn delim s

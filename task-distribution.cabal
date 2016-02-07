@@ -34,7 +34,7 @@ library
                      , Control.Distributed.Task.TaskSpawning.DeployFullBinary
                      , Control.Distributed.Task.TaskSpawning.DeploySerializedThunk
                      , Control.Distributed.Task.TaskSpawning.FunctionSerialization
-                     , Control.Distributed.Task.TaskSpawning.ObjectCodeModuleDeployment
+                     , Control.Distributed.Task.TaskSpawning.DeployObjectCodeRelinked
                      , Control.Distributed.Task.DataAccess.DataSource
                      , Control.Distributed.Task.DataAccess.SimpleDataSource
                      , Control.Distributed.Task.DataAccess.HdfsDataSource
@@ -102,12 +102,27 @@ executable example
   default-language:    Haskell2010
 
 executable task-distribution-object-code-remote
-  hs-source-dirs:      object-code-app
+  hs-source-dirs:      object-code-app, src
   main-is:             RemoteExecutor.hs
   other-modules:       RemoteExecutable
+                     , Control.Distributed.Task.Types.TaskTypes
+                     , Control.Distributed.Task.TaskSpawning.DeployFullBinary
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , bytestring
+                     , hslogger
+                     , split
+                     , directory
+                     , time
+                     , binary
+                     , process
+                     , temporary
+                     , filepath
+                     , distributed-process
+                     , async
+                     , hadoop-rpc
+                     , text
+                     , zlib
   default-language:    Haskell2010
 
 executable run-demo-task
@@ -170,7 +185,7 @@ test-suite test-object-code
   hs-source-dirs:      test
                      , src
   main-is:             ObjectCodeDistributionTest.hs
-  other-modules:       Control.Distributed.Task.TaskSpawning.ObjectCodeModuleDeployment
+  other-modules:       Control.Distributed.Task.TaskSpawning.DeployObjectCodeRelinked
                      , Control.Distributed.Task.TaskSpawning.ExecutionUtil
                      , Control.Distributed.Task.Types.TaskTypes
                      , Control.Distributed.Task.Util.Configuration

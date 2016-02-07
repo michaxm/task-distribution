@@ -5,7 +5,7 @@ module Control.Distributed.Task.Distribution.RunComputation (
   ResultSpec(..),
   runMaster) where
 
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, sort)
 import Data.List.Split (splitOn)
 import System.Directory (getDirectoryContents) -- being renamed to listDirectory
 import System.Environment (getExecutablePath)
@@ -77,7 +77,7 @@ expandDataSpec (HdfsDataSpec path depth filterPrefix) = do
 expandDataSpec (SimpleDataSpec numTasks) = do
   config <- getConfiguration
   files <- getDirectoryContents (_pseudoDBPath config)
-  return $ take numTasks $ map PseudoDB files
+  return $ take numTasks $ map PseudoDB $ filter (not . ("." `isPrefixOf`)) $ sort files
 
 mkSourceCodeModule :: String -> String -> TaskDef
 mkSourceCodeModule modulePath moduleContent = SourceCodeModule (strippedModuleName modulePath) moduleContent

@@ -66,7 +66,7 @@ expectSilentSuccess executionOutput = expectSuccess executionOutput >>= \res -> 
 
 expectSuccess :: (ExitCode, String, String) -> IO String
 expectSuccess (ExitSuccess, result, []) = return result
-expectSuccess output = error $ "command exited with unexpected status: " ++ (show output)
+expectSuccess (code, out, err) = error $ "command exited with unexpected status: "++show code++", output:\n"++out++"\nstderr:\n"++err
 
 createTempFilePath :: String -> IO FilePath
 createTempFilePath template = do

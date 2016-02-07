@@ -1,5 +1,11 @@
 import qualified Data.ByteString.Char8 as BLC
-import System.Environment (getArgs)
+import System.Environment (getArgs, getExecutablePath)
+import qualified System.Log.Logger as L
+
+import Control.Distributed.Task.TaskSpawning.DeployFullBinary
+import Control.Distributed.Task.Types.TaskTypes
+import Control.Distributed.Task.Util.Configuration
+import Control.Distributed.Task.Util.Logging
 
 import RemoteExecutable
 
@@ -7,12 +13,20 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-   [taskInputFilePath] -> do
-     fileContents <- BLC.readFile taskInputFilePath
-     executeF (read $ BLC.unpack fileContents)
-   _ -> error "Syntax: <task input file path>\n"
+   [ioHandling] -> executeFunction (unpackIOHandling ioHandling)
+   _ -> error "Syntax for relinked task: <ioHandling>\n"
 
-executeF :: [String] -> IO ()
-executeF i = do
-  res <- return $ remoteExecutable i
-  print res
+executeFunction :: IOHandling -> IO ()
+executeFunction ioHandling = do
+  initTaskLogging
+  fullBinaryExecution ioHandling executeF
+  where
+    executeF :: Task
+    executeF = remoteExecutable
+
+initTaskLogging :: IO ()
+initTaskLogging = do
+  conf <- getConfiguration
+  initLogging L.ERROR L.INFO (_taskLogFile conf)
+  self <- getExecutablePath
+  logInfo $ "started task execution for: "++self
