@@ -21,7 +21,8 @@ loadTask resultType moduleName moduleContent = do
 
 loadTaskDef :: Typeable a => a -> String -> String -> I.Interpreter a
 loadTaskDef resultType moduleName moduleContent = do
-  I.setImports ["Prelude"] -- TODO additional dependency configuration not yet implemented
+  -- TODO additional dependency configuration not yet implemented
+  I.setImports ["Prelude"]
   sayI $ "Interpreter: Loading static modules and: " ++ moduleName ++ " ..."
   withTempModuleFile moduleName moduleContent loadModule
   func <- I.interpret "task" resultType

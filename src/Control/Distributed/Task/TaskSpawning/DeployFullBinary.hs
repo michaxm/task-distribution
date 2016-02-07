@@ -32,7 +32,6 @@ deployAndRunExternalBinary programBaseArgs ioHandling program =
 {-|
  Makes an external system call, parameters must match those read in RemoteExecutionSupport.
 -}
- -- should setting the executable flag rather be a part of the binary storage?
 runExternalBinary :: [String] -> IOHandling -> FilePath -> IO ExternalExecutionResult
 runExternalBinary programBaseArgs ioHandling executablePath =
   measureDuration $ do
@@ -65,7 +64,16 @@ runSingle task resultDef dataDef = do
       case resultDef of
        ReturnAsMessage -> return taskResult
        ReturnOnlyNumResults -> return [BLC.pack $ show $ length taskResult]
-       (HdfsResult pre suf z) -> writeToHdfs >> return []
+       (HdfsResult pre suf z) -> writeResultsToHdfs dataDef pre suf z taskResult
+
+emitResult :: TaskResult -> IO ()
+emitResult = BLC.putStrLn . BLC.concat . intersperse (BLC.pack "|")
+
+consumeResults :: String -> [TaskResult]
+consumeResults = map (BLC.split '|') . BLC.lines . BLC.pack
+
+writeResultsToHdfs :: DataDef -> String -> String -> Bool -> TaskResult -> IO TaskResult
+writeResultsToHdfs dataDef pre suf z taskResult = writeToHdfs >> return []
          where
            hdfsPath (HdfsData p) = pre++"/"++p++"/"++suf
            hdfsPath _ = error "implemented only for hdfs output"
@@ -79,9 +87,3 @@ runSingle task resultDef dataDef = do
                    logInfo $ "external binary: copying "++localFile++" to "++destPath++"/"++destFilename
                    _ <- executeExternal "hdfs" ["dfs", "-mkdir", "-p", destPath] -- hadoop-rpc does not yet support writing, the external system call is an acceptable workaround
                    executeExternal "hdfs" ["dfs", "-copyFromLocal", localFile, destPath++"/"++destFilename]
-
-emitResult :: TaskResult -> IO ()
-emitResult = BLC.putStrLn . BLC.concat . intersperse (BLC.pack "|")
-
-consumeResults :: String -> [TaskResult]
-consumeResults = map (BLC.split '|') . BLC.lines . BLC.pack
