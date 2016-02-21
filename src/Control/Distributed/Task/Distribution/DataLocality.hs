@@ -23,7 +23,7 @@ findNodesWithData hdfsFilePath nodes = do
   (if null hostsWithData then logError else logInfo) ("Hdfs hosts with data: " ++ (show hostsWithData))
   hosts <- readHostNames
   logDebug (show hosts)
-  mergedNodeIds <- return $ map fst $ sortOn snd $ merge (matcher hosts) merger nodes hostsWithData
+  mergedNodeIds <- return $ map fst $ reverse $ sortOn snd $ merge (matcher hosts) merger nodes hostsWithData
   logInfo ("Merged nodes: " ++ (show mergedNodeIds))
   return mergedNodeIds
     where
