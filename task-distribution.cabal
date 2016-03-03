@@ -155,9 +155,9 @@ test-suite test-node-matching
   hs-source-dirs:      test
                      , src
   main-is:             NodeMatchingTests.hs
-  other-modules:       Types.TaskTypes
+  other-modules:       Control.Distributed.Task.Types.TaskTypes
                      , Control.Distributed.Task.Util.Configuration
-                     , Types.HdfsConfigTypes
+                     , Control.Distributed.Task.Types.HdfsConfigTypes
                      , Control.Distributed.Task.Distribution.DataLocality
                      , Util.Logging
   build-depends:       base
