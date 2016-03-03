@@ -6,7 +6,7 @@ homepage:            http://github.com/michaxm/task-distribution#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Axel Mannhardt
-maintainer:          example@example.com
+maintainer:          7a3ggptwts@snkmail.com
 copyright:           2016 Axel Mannhardt
 category:            Distributed Computing
 build-type:          Simple
@@ -121,6 +121,7 @@ executable task-distribution-object-code-remote
                      , distributed-process
                      , async
                      , hadoop-rpc
+                     , vector
                      , text
                      , zlib
   default-language:    Haskell2010
@@ -159,38 +160,6 @@ test-suite test-node-matching
                      , Control.Distributed.Task.Util.Configuration
                      , Control.Distributed.Task.Types.HdfsConfigTypes
                      , Control.Distributed.Task.Distribution.DataLocality
-                     , Util.Logging
-  build-depends:       base
-                     , hspec
-                     , task-distribution
-                     , hint
-                     , binary
-                     , temporary, filepath, directory
-                     , transformers
-                     , bytestring
-                     , packman
-                     , process
-                     , distributed-process
-                     , distributed-process-simplelocalnet
-                     , rank1dynamic
-                     , distributed-static
-                     , hdfs-thrift-client, text
-                     , split
-                     , hslogger
-  ghc-options:         -O0
-  default-language:    Haskell2010
-
-test-suite test-object-code
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-                     , src
-  main-is:             ObjectCodeDistributionTest.hs
-  other-modules:       Control.Distributed.Task.TaskSpawning.DeployObjectCodeRelinked
-                     , Control.Distributed.Task.TaskSpawning.ExecutionUtil
-                     , Control.Distributed.Task.Types.TaskTypes
-                     , Control.Distributed.Task.Util.Configuration
-                     , Control.Distributed.Task.Types.HdfsConfigTypes
-                     , Control.Distributed.Task.Util.ErrorHandling
                      , Control.Distributed.Task.Util.Logging
   build-depends:       base
                      , hspec
@@ -206,13 +175,14 @@ test-suite test-object-code
                      , distributed-process-simplelocalnet
                      , rank1dynamic
                      , distributed-static
-                     , hdfs-thrift-client, text
+                     , text
+                     , hadoop-rpc
+                     , vector
                      , split
                      , hslogger
-                     , time
   ghc-options:         -O0
   default-language:    Haskell2010
 
 source-repository head
   type:     git
-  location: git@michaxm.de:task-distribution.git
+  location: git@github.com:michaxm/task-distribution.git

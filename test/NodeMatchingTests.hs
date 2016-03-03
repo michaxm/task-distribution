@@ -1,7 +1,7 @@
 import Data.List.Split (splitOn)
 import Test.Hspec
 
-import ClusterComputing.DataLocality (nodeMatcher)
+import Control.Distributed.Task.Distribution.DataLocality (nodeMatcher)
 
 main :: IO ()
 main = hspec $ do
