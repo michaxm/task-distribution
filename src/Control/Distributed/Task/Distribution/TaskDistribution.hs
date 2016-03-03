@@ -60,31 +60,31 @@ prepareSlave (masterProcess, hash, content) = handlePrepareSlave hash content >>
 --remotable ['slaveTask] 
 -- ======>
 slaveTask__static :: S.Static (TaskTransport -> Process ())
-slaveTask__static = S.staticLabel "ClusterComputing.TaskDistribution.slaveTask"
+slaveTask__static = S.staticLabel "Control.Distributed.Task.Distribution.TaskDistribution.slaveTask"
 slaveTask__sdict :: S.Static (PS.SerializableDict TaskTransport)
-slaveTask__sdict = S.staticLabel "ClusterComputing.TaskDistribution.slaveTask__sdict"
+slaveTask__sdict = S.staticLabel "Control.Distributed.Task.Distribution.TaskDistribution.slaveTask__sdict"
 -- not used for now, removed due to warnings as errors
 --slaveTask__tdict :: S.Static (PS.SerializableDict ())
---slaveTask__tdict = S.staticLabel "ClusterComputing.TaskDistribution.slaveTask__tdict"
+--slaveTask__tdict = S.staticLabel "Control.Distributed.Task.Distribution.TaskDistribution.slaveTask__tdict"
 querySlavePreparation__static :: S.Static (QuerySlavePreparationRequest -> Process())
-querySlavePreparation__static = S.staticLabel "ClusterComputing.TaskDistribution.querySlavePreparation"
+querySlavePreparation__static = S.staticLabel "Control.Distributed.Task.Distribution.TaskDistribution.querySlavePreparation"
 querySlavePreparation__sdict :: S.Static (PS.SerializableDict QuerySlavePreparationRequest)
-querySlavePreparation__sdict = S.staticLabel "ClusterComputing.TaskDistribution.querySlavePreparation__sdict"
+querySlavePreparation__sdict = S.staticLabel "Control.Distributed.Task.Distribution.TaskDistribution.querySlavePreparation__sdict"
 prepareSlave__static :: S.Static (PrepareSlaveRequest -> Process())
-prepareSlave__static = S.staticLabel "ClusterComputing.TaskDistribution.prepareSlave"
+prepareSlave__static = S.staticLabel "Control.Distributed.Task.Distribution.TaskDistribution.prepareSlave"
 prepareSlave__sdict :: S.Static (PS.SerializableDict PrepareSlaveRequest)
-prepareSlave__sdict = S.staticLabel "ClusterComputing.TaskDistribution.prepareSlave__sdict"
+prepareSlave__sdict = S.staticLabel "Control.Distributed.Task.Distribution.TaskDistribution.prepareSlave__sdict"
 __remoteTable :: S.RemoteTable -> S.RemoteTable
 __remoteTable =
-  (S.registerStatic "ClusterComputing.TaskDistribution.slaveTask" (R1.toDynamic slaveTask))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.slaveTask__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict TaskTransport)))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.slaveTask__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.querySlavePreparation" (R1.toDynamic querySlavePreparation))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.querySlavePreparation__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict QuerySlavePreparationRequest)))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.querySlavePreparation__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareSlave" (R1.toDynamic prepareSlave))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareSlave__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict PrepareSlaveRequest)))
-  . (S.registerStatic "ClusterComputing.TaskDistribution.prepareSlave__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
+  (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.slaveTask" (R1.toDynamic slaveTask))
+  . (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.slaveTask__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict TaskTransport)))
+  . (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.slaveTask__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
+  . (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.querySlavePreparation" (R1.toDynamic querySlavePreparation))
+  . (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.querySlavePreparation__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict QuerySlavePreparationRequest)))
+  . (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.querySlavePreparation__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
+  . (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.prepareSlave" (R1.toDynamic prepareSlave))
+  . (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.prepareSlave__sdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict PrepareSlaveRequest)))
+  . (S.registerStatic "Control.Distributed.Task.Distribution.TaskDistribution.prepareSlave__tdict" (R1.toDynamic (PS.SerializableDict :: PS.SerializableDict ())))
 
 slaveTaskClosure :: TaskTransport -> S.Closure (Process ())
 slaveTaskClosure =
