@@ -1,5 +1,5 @@
 name:                task-distribution
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Initial project template from stack
 description:         Please see README.md
 homepage:            http://github.com/michaxm/task-distribution#readme
@@ -44,7 +44,7 @@ library
                      , Control.Distributed.Task.Util.FileUtil
                      , Control.Distributed.Task.Util.Logging
                      , Control.Distributed.Task.Util.SerializationUtil
-  ghc-options:         -Wall -Werror -threaded -rtsopts -with-rtsopts=-N -ddump-splices -ddump-to-file
+  ghc-options:         -Wall -rtsopts -with-rtsopts=-N
   build-depends:       base >= 4.7 && < 5
                      , hint
                      , binary
@@ -75,7 +75,7 @@ executable slave
   hs-source-dirs:      app
   main-is:             Slave.hs
   other-modules:       
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:       base
                      , task-distribution
                      , hslogger
@@ -91,7 +91,7 @@ executable example
   other-modules:       RemoteExecutable
                      , FullBinaryExamples
                      , DemoTask
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall -Werror
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:       base
                      , split
                      , task-distribution
@@ -145,7 +145,7 @@ executable test-visit-performance
   main-is:             TestVisitCalculation.hs
   other-modules:       RemoteExecutable
                      , VisitCalculation
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Werror
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:       base
                      , split
                      , containers
