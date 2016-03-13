@@ -4,10 +4,11 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
+import qualified Codec.Compression.BZip as BZip
 import qualified Codec.Compression.GZip as GZip
 import qualified Data.Hadoop.Configuration as HDFS
 import qualified Data.Hadoop.Types as HDFS
-import Data.List (isSuffixOf)
+import Data.List.Split (splitOn)
 import qualified Data.Text as T
 import Network.Hadoop.Hdfs
 import Network.Hadoop.Read
@@ -32,7 +33,13 @@ loadEntries hdfsLocation = do
   where
     targetDescription = show hdfsLocation
     doLoad = readHdfsFile hdfsLocation
-    unzipIfNecessary = if ".gz" `isSuffixOf` (snd hdfsLocation) then GZip.decompress else id
+    unzipIfNecessary =
+      let parts = splitOn "." (snd hdfsLocation)
+          suffix = if null parts then "" else last parts
+      in case suffix of
+          "gz" -> GZip.decompress
+          "bz2" -> BZip.decompress
+          _ -> id
 
 readHdfsFile :: HdfsLocation -> IO BL.ByteString
 readHdfsFile (hdfsConfig, path) = do
