@@ -293,6 +293,7 @@ handleSlaveTask (TaskTransport masterProcess taskMetaData taskDef dataDefs resul
   transportedResult <- (
     do
       acceptTime <- liftIO getCurrentTime
+      liftIO $ putStrLn $ "processing: " ++ taskName
       say $ "processing: " ++ taskName
       results <- liftIO (processTasks taskDef dataDefs resultDef)
       say $ "processing done for: " ++ taskName

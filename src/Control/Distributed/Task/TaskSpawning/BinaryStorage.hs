@@ -8,6 +8,8 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Hashable (hash)
 import System.Directory
 
+import Control.Distributed.Task.Util.Logging
+
 calculateHash :: BL.ByteString -> Int
 calculateHash = hash
 
@@ -16,7 +18,10 @@ put fileHash content = do
   (filePath, fileExists) <- getFilePath fileHash
   if fileExists
     then return ()
-    else BL.writeFile filePath content
+    else (do
+             logInfo $ "storing task at "++filePath
+             BL.writeFile filePath content
+         )
 
 get :: Int -> IO (Maybe FilePath)
 get fileHash = do
