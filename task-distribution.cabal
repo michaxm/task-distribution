@@ -65,7 +65,7 @@ library
                      , hashable
                      , zlib
                      , bzlib
-                     , hadoop-rpc < 1.1
+                     , hadoop-rpc
                      , vector
                      , containers
                      , async
@@ -121,7 +121,7 @@ executable task-distribution-object-code-remote
                      , filepath
                      , distributed-process
                      , async
-                     , hadoop-rpc < 1.1
+                     , hadoop-rpc
                      , vector
                      , text
                      , zlib
@@ -178,7 +178,7 @@ test-suite test-node-matching
                      , rank1dynamic
                      , distributed-static
                      , text
-                     , hadoop-rpc < 1.1
+                     , hadoop-rpc
                      , vector
                      , split
                      , hslogger
