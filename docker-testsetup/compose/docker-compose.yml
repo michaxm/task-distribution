@@ -1,0 +1,33 @@
+namenode:
+  image: axm/task-distribution-example
+  hostname: namenode
+  volumes:
+      - /docker_shared/debian-hadoop/namenode:/shared
+  command: /usr/local/bin/start-namenode.bash
+
+datanode1:
+  image: axm/task-distribution
+  hostname: datanode1
+  volumes:
+      - /docker_shared/debian-hadoop/datanode1:/shared
+  links:
+      - "namenode"
+  command: /usr/local/bin/start-datanode.bash datanode1 44441
+
+datanode2:
+  image: axm/task-distribution
+  hostname: datanode2
+  volumes:
+      - /docker_shared/debian-hadoop/datanode2:/shared
+  links:
+      - namenode
+  command: /usr/local/bin/start-datanode.bash datanode2 44442
+
+datanode3:
+  image: axm/task-distribution
+  hostname: datanode3
+  volumes:
+      - /docker_shared/debian-hadoop/datanode3:/shared
+  links:
+      - namenode
+  command: /usr/local/bin/start-datanode.bash datanode3 44443
