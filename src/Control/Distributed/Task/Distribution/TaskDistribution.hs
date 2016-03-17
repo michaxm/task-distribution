@@ -88,7 +88,7 @@ __remoteTable =
 
 slaveTaskClosure :: TaskTransport -> S.Closure (Process ())
 slaveTaskClosure =
-  -- $(mkClosure 'slaveTask)
+-- $(mkClosure 'slaveTask)
 -- ======>
    ((S.closure
     (slaveTask__static
