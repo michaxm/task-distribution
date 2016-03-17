@@ -1,4 +1,4 @@
-FROM axm/task-distribution
+FROM michaxm/task-distribution
 
 #hdfs filtering example
 ADD example.bash /usr/local/task-distribution/example.bash

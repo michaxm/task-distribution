@@ -1,4 +1,4 @@
-FROM axm/task-distribution-base
+FROM michaxm/task-distribution-base
 
 #provide scripts for starting name/datanodes (see docker-compose)
 ADD start-datanode.bash /usr/local/bin/start-datanode.bash

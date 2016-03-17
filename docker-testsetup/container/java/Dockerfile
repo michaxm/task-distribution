@@ -1,4 +1,4 @@
-FROM axm/base-extended
+FROM michaxm/base-extended
 RUN \
     echo "===> add webupd8 repository..."  && \
     echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | tee /etc/apt/sources.list.d/webupd8team-java.list  && \

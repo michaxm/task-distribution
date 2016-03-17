@@ -1,4 +1,6 @@
-FROM axm/hadoop-env
+FROM michaxm/hadoop-env
+
+RUN apt-get update && apt-get upgrade -y && apt-get install libbz2-dev
 
 #setup & rarely changing dependencies
 RUN cd /usr/local && git clone https://github.com/michaxm/task-distribution.git

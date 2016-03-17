@@ -1,4 +1,4 @@
-FROM axm/hadoop
+FROM michaxm/hadoop
 
 ENV HADOOP_PREFIX /usr/local/hadoop
 ENV HADOOP_COMMON_HOME /usr/local/hadoop
