@@ -20,6 +20,7 @@ logTrace _ = return () --simpleLog L.debugM
 simpleLog :: (String -> String -> IO ()) -> String -> IO ()
 simpleLog levelLogger = levelLogger L.rootLoggerName
 
+-- | Sets up hslogger.
 initLogging :: L.Priority -> L.Priority -> FilePath -> IO ()
 initLogging stdoutLogLevel fileLogLevel logfile = do
   L.updateGlobalLogger L.rootLoggerName (L.removeHandler)

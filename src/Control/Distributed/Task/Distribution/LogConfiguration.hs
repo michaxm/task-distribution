@@ -7,6 +7,7 @@ import qualified System.Log.Logger as L
 
 import Control.Distributed.Task.Util.Logging (initLogging)
 
+-- | Sets up hslogger with a part logfile, part stdout configuration.
 initDefaultLogging :: String -> IO ()
 initDefaultLogging suffix = do
 --  progName <- getExecutablePath

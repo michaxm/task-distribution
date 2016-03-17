@@ -17,9 +17,11 @@ import Control.Distributed.Task.Types.TaskTypes
 import Control.Distributed.Task.Util.Configuration
 import Control.Distributed.Task.Util.Logging
 
+-- | Combines all defined task mode hooks.
 withRemoteExecutionSupport :: (TaskInput -> TaskResult) -> IO () -> IO ()
 withRemoteExecutionSupport fn = withSerializedThunkRemoteExecutionSupport . withFullBinaryRemoteExecutionSupport fn
 
+-- | Provides support for fullbinary task mode.
 withFullBinaryRemoteExecutionSupport :: (TaskInput -> TaskResult) -> IO () -> IO ()
 withFullBinaryRemoteExecutionSupport fn mainAction = do
   args <- getArgs
@@ -32,6 +34,7 @@ withFullBinaryRemoteExecutionSupport fn mainAction = do
      else mainAction
    _ -> mainAction
 
+-- | Provides support for serialized thunk task mode.
 withSerializedThunkRemoteExecutionSupport :: IO () -> IO ()
 withSerializedThunkRemoteExecutionSupport mainAction = do
   args <- getArgs

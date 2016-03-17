@@ -1,3 +1,6 @@
+{-|
+  Contains all node communication (using Cloud Haskell). This includes distribution logic.
+-}
 module Control.Distributed.Task.Distribution.TaskDistribution (
   startSlaveNode,
   executeDistributed,
@@ -88,7 +91,7 @@ __remoteTable =
 
 slaveTaskClosure :: TaskTransport -> S.Closure (Process ())
 slaveTaskClosure =
--- $(mkClosure 'slaveTask)
+  -- \$(mkClosure 'slaveTask)
 -- ======>
    ((S.closure
     (slaveTask__static
@@ -121,6 +124,9 @@ rtable = __remoteTable $ initRemoteTable
 
 type NodeConfig = (String, Int)
 
+{-|
+Start a slave listening on given hostname, port.
+-}
 startSlaveNode :: NodeConfig -> IO ()
 startSlaveNode (host, port) = do
   initDefaultLogging (show port)
@@ -128,6 +134,9 @@ startSlaveNode (host, port) = do
   putStrLn "initializing slave"
   startSlave backend
 
+{-|
+Run a calculation on all accessible slaves. This is a low-level method, look at the RunComputaiton module for a nicer interface.
+-}
 executeDistributed :: NodeConfig -> TaskDef -> [DataDef] -> ResultDef -> ([TaskResult] -> IO ())-> IO ()
 executeDistributed (host, port) taskDef dataDefs resultDef resultProcessor = do
   backend <- initializeBackend host (show port) rtable
@@ -325,10 +334,16 @@ handlePrepareSlave :: Int -> ByteString -> Process PrepareSlaveResponse
 handlePrepareSlave hash content = liftIO (RemoteStore.put hash content) >> return PreparationFinished
 
 -- simple tasks
+{-|
+List all accessible slaves.
+-}
 showSlaveNodes :: NodeConfig -> IO ()
 showSlaveNodes config = withSlaveNodes config (
   \slaveNodes -> putStrLn ("Slave nodes: " ++ show slaveNodes))
 
+{-|
+List all accessible slaves that have at least a single block of the specified path stored physically.
+-}
 showSlaveNodesWithData :: NodeConfig -> String -> IO ()
 showSlaveNodesWithData slaveConfig hdfsFilePath = withSlaveNodes slaveConfig (
   \slaveNodes -> do
@@ -340,6 +355,9 @@ withSlaveNodes (host, port) action = liftIO $ do
   backend <- initializeBackend host (show port) initRemoteTable
   startMaster backend (\slaveNodes -> liftIO (action slaveNodes))
 
+{-|
+Convenience method to stop all accessible slaves remotely.
+-}
 shutdownSlaveNodes :: NodeConfig -> IO ()
 shutdownSlaveNodes (host, port) = do
   backend <- initializeBackend host (show port) rtable
