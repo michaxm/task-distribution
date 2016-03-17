@@ -49,7 +49,7 @@ To launch a distributed calculation, _RunComputation_ is used. It provides diffe
 
 Most of the provided methods require the user program to support a main call with special arguments. This is needed to execute it in task mode. To setup this support, _RemoteExecutionSupport_ should be used.
 
-[Here](tree/master/doc/module_overview.png) a mostly complete diagram of modules (including internal) can be found.
+[Here](doc/module_overview.png) a mostly complete diagram of modules (including internal) can be found.
 
 
 
