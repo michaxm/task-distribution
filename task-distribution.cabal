@@ -1,7 +1,11 @@
 name:                task-distribution
+
 version:             0.1.0.2
-synopsis:            Initial project template from stack
-description:         Please see README.md
+synopsis:            Distributed processing of changing tasks
+description:         A framework for distributing tasks running on HDFS data using Cloud Haskell.
+                     The goal is speedup through distribution on clusters using regular hardware.
+                     This framework provides different, simple workarounds to transport new code to other cluster nodes.
+                     See project home / README.md for more information.
 homepage:            http://github.com/michaxm/task-distribution#readme
 license:             BSD3
 license-file:        LICENSE
