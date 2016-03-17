@@ -1,6 +1,6 @@
 name:                task-distribution
 
-version:             0.1.0.2
+version:             0.1.0.3
 synopsis:            Distributed processing of changing tasks
 description:         A framework for distributing tasks running on HDFS data using Cloud Haskell.
                      The goal is speedup through distribution on clusters using regular hardware.
